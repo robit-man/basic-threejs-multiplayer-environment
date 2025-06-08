@@ -223,22 +223,50 @@
             }
 
             _buildGeometry() {
+                const posAttr = new THREE.Float32BufferAttribute(
+                    new Float32Array(this.targetPositions), 3
+                ).setUsage(THREE.DynamicDrawUsage);
+
+                // create a parallel colour buffer – initial flat medium-blue
+                const vCount = this.targetPositions.length / 3;
+                const colors = new Float32Array(vCount * 3);
+                for (let i = 0; i < vCount; i++) {          // RGB per-vertex
+                    colors[3 * i + 0] = 0.2;                // r
+                    colors[3 * i + 1] = 0.4;                // g
+                    colors[3 * i + 2] = 0.8;                // b
+                }
+                const colAttr = new THREE.Float32BufferAttribute(colors, 3)
+                    .setUsage(THREE.DynamicDrawUsage);
+
                 this.geometry = new THREE.BufferGeometry();
-                this.geometry.setAttribute(
-                    'position',
-                    new THREE.Float32BufferAttribute(new Float32Array(this.targetPositions), 3)
-                        .setUsage(THREE.DynamicDrawUsage)
-                );
+                this.geometry.setAttribute('position', posAttr);
+                this.geometry.setAttribute('color', colAttr);
                 this.geometry.setIndex(this.triangles);
                 this.geometry.computeVertexNormals();
             }
 
             _initUserData() {
-                const mat = new THREE.MeshLambertMaterial({ color: 0xffffff, side: THREE.DoubleSide });
-                this.mesh = new THREE.Mesh(this.geometry, mat);
+                // shaded surface coloured per-vertex
+                const solidMat = new THREE.MeshStandardMaterial({
+                    vertexColors: true,
+                    side: THREE.DoubleSide,
+                    flatShading: false
+                });
+
+                // thin black wireframe overlay
+                const wireMat = new THREE.MeshBasicMaterial({
+                    color: 0x000000,
+                    wireframe: true
+                });
+
+                this.mesh = new THREE.Mesh(this.geometry, solidMat);
+                const wireMesh = new THREE.Mesh(this.geometry, wireMat);
+                wireMesh.renderOrder = 1;          // draw on top
+
                 this.mesh.castShadow = this.mesh.receiveShadow = true;
+
                 this.group = new THREE.Group();
-                this.group.add(this.mesh);
+                this.group.add(this.mesh, wireMesh);
             }
 
             get object() { return this.group; }
@@ -351,74 +379,222 @@
         function rebuildElevations(gridInstance) {
             if (!origin) return;
 
-            const attr = gridInstance.geometry.attributes.position;
-            const tp = attr.array;
-            const n = tp.length / 3;
-            const mLat = 111320, mLon = 111320 * Math.cos(origin.lat * Math.PI / 180);
-            let normOff = null;
-            const idxs = [];
-            for (let i = 0; i < n; i++) idxs.push({ i, d: Math.hypot(tp[3 * i], tp[3 * i + 2]) });
-            idxs.sort((a, b) => a.d - b.d);
+            // ── geometry handles ────────────────────────────────────────────────────
+            const posAttr = gridInstance.geometry.attributes.position;
+            const tp = posAttr.array;
+            const vCount = tp.length / 3;
+
+            // ensure a colour buffer exists (RGB per vertex)
+            let colAttr = gridInstance.geometry.attributes.color;
+            if (!colAttr) {
+                const colors = new Float32Array(vCount * 3);
+                colAttr = new THREE.Float32BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage);
+                gridInstance.geometry.setAttribute('color', colAttr);
+            }
+            const colArr = colAttr.array;
+
+            // running min/max elevation to map colours
+            gridInstance._minY = gridInstance._minY ?? Infinity;
+            gridInstance._maxY = gridInstance._maxY ?? -Infinity;
+
+            // ── helpers ─────────────────────────────────────────────────────────────
+            const mLat = 111320;
+            const mLon = 111320 * Math.cos(origin.lat * Math.PI / 180);
+
+            // colour ramp: deep-blue → bright-yellow
+            const setColour = (idx, y) => {
+                const minY = gridInstance._minY;
+                const maxY = gridInstance._maxY;
+                const span = Math.max(1e-6, maxY - minY);
+                const t = THREE.MathUtils.clamp((y - minY) / span, 0, 1);
+
+                const r = t;                         // 0 → 1
+                const g = 0.4 + 0.6 * t;             // 0.4 → 1
+                const b = 0.8 * (1 - t);             // 0.8 → 0
+
+                colArr[3 * idx + 0] = r;
+                colArr[3 * idx + 1] = g;
+                colArr[3 * idx + 2] = b;
+            };
+
+            // recalc all colours if min/max range expands
+            const recolourAll = () => {
+                for (let i = 0; i < vCount; i++) {
+                    setColour(i, tp[3 * i + 1]);
+                }
+                colAttr.needsUpdate = true;
+            };
+
+            let normOff = null;            // centre elevation once fetched
+            const pending = [];            // points fetched before normOff known
+
+            // list vertices by distance (idxs[0] is the centre)
+            const idxs = Array.from({ length: vCount }, (_, i) => ({
+                i,
+                d: Math.hypot(tp[3 * i], tp[3 * i + 2])
+            })).sort((a, b) => a.d - b.d);
+
             idxs.forEach(({ i }, order) => {
-                const ix = 3 * i, x = tp[ix], z = tp[ix + 2];
+                const ix = 3 * i;
+                const x = tp[ix];
+                const z = tp[ix + 2];
                 const latP = origin.lat + z / mLat;
                 const lonP = origin.lon + x / mLon;
-                const hit = cachedElev(latP, lonP);
-                const delay = hit != null ? 0 : order * 30;
-                setTimeout(() => {
-                    const apply = raw => {
-                        if (order === 0) normOff = raw;
-                        const fe = raw - (normOff || 0);
-                        tp[ix + 1] = fe;
-                        attr.needsUpdate = true;
+
+                const cached = cachedElev(latP, lonP);
+                const delay = cached != null ? 0 : order * 30;
+
+                const applyRaw = raw => {
+                    if (normOff === null) {
+                        if (order === 0) {
+                            // establish centre offset
+                            normOff = raw;
+                            tp[ix + 1] = 0;                 // centre → 0 m
+
+                            // flush any earlier arrivals
+                            pending.forEach(({ idx, rawVal }) => {
+                                const y = rawVal - normOff;
+                                tp[3 * idx + 1] = y;
+                                gridInstance._minY = Math.min(gridInstance._minY, y);
+                                gridInstance._maxY = Math.max(gridInstance._maxY, y);
+                                setColour(idx, y);
+                            });
+                            pending.length = 0;
+
+                            // update colour/normal buffers for the centre
+                            gridInstance._minY = Math.min(gridInstance._minY, 0);
+                            gridInstance._maxY = Math.max(gridInstance._maxY, 0);
+                            setColour(i, 0);
+                            colAttr.needsUpdate = true;
+                            posAttr.needsUpdate = true;
+                            gridInstance.geometry.computeVertexNormals();
+                        } else {
+                            // hold until we know normOff
+                            pending.push({ idx: i, rawVal: raw });
+                        }
+                    } else {
+                        const y = raw - normOff;
+                        tp[ix + 1] = y;
+
+                        // extend range?
+                        let rangeChanged = false;
+                        if (y < gridInstance._minY) { gridInstance._minY = y; rangeChanged = true; }
+                        if (y > gridInstance._maxY) { gridInstance._maxY = y; rangeChanged = true; }
+
+                        if (rangeChanged) {
+                            recolourAll();
+                        } else {
+                            setColour(i, y);
+                            colAttr.needsUpdate = true;
+                        }
+
+                        posAttr.needsUpdate = true;
                         gridInstance.geometry.computeVertexNormals();
-                    };
-                    if (hit != null) apply(hit);
-                    else {
+                    }
+                };
+
+                // schedule fetch / use cache
+                setTimeout(() => {
+                    if (cached != null) {
+                        applyRaw(cached);
+                    } else {
                         fetch(`https://epqs.nationalmap.gov/v1/json?x=${lonP}&y=${latP}&wkid=4326&units=Meters`)
-                            .then(r => r.json()).then(d => {
-                                const raw = d.value != null ? d.value : tp[ix + 1];
+                            .then(r => r.json())
+                            .then(d => {
+                                const raw = d.value != null ? d.value : 0;
                                 addCache(latP, lonP, raw);
-                                apply(raw);
-                            }).catch(() => apply(tp[ix + 1]));
+                                applyRaw(raw);
+                            })
+                            .catch(() => applyRaw(0));
                     }
                 }, delay);
             });
+
+            // safety pass – smooth first-ring spikes then recolour if needed
+            setTimeout(() => {
+                if (normOff === null) return;
+                const threshold = 25;
+                let changed = false;
+                for (let k = 0; k < Math.min(7, idxs.length); k++) {
+                    const idx = idxs[k].i;
+                    const y = tp[3 * idx + 1];
+                    if (Math.abs(y) > threshold) {
+                        tp[3 * idx + 1] = 0;
+                        changed = true;
+                    }
+                }
+                if (changed) {
+                    recolourAll();
+                    posAttr.needsUpdate = true;
+                    gridInstance.geometry.computeVertexNormals();
+                }
+            }, 2000);
         }
 
-        // ── Sky & Sun + Moonlight ──────────────────────────────────────────────
         let sky, sunVector, sunLight, moonLight;
         function initSky() {
+            // physical sky dome
             sky = new Sky();
             sky.scale.setScalar(450000);
             scene.add(sky);
+
             sunVector = new THREE.Vector3();
-            sunLight = new THREE.DirectionalLight(0xffffff, 1.5);
+
+            // ultra-hard key light: high intensity, narrow angular diameter
+            sunLight = new THREE.DirectionalLight(0xffffff, 4.0);   // brighter & harsher
             sunLight.castShadow = true;
+            sunLight.shadow.mapSize.set(8192, 8192);                // razor-sharp shadows
+            sunLight.shadow.bias = -0.0004;
+            sunLight.shadow.normalBias = 0.001;
             scene.add(sunLight);
-            moonLight = new THREE.DirectionalLight(0x8888aa, 0.2);
+
+            // almost no ambient fill – let shadows go dark
+            const hemi = new THREE.HemisphereLight(0x404040, 0x202020, 0.08);
+            scene.add(hemi);
+
+            // subtle rim/back light to separate silhouettes (cool tint, very low)
+            const rimLight = new THREE.DirectionalLight(0x7aa7ff, 0.15);
+            rimLight.position.set(-0.4, 0.3, -0.4).normalize();
+            scene.add(rimLight);
+
+            // moonlight kept but dimmed further
+            moonLight = new THREE.DirectionalLight(0x8899bb, 0.08);
             scene.add(moonLight);
         }
+
+        /**
+         * Positions the sun straight from real-world azimuth/elevation but **keeps
+         * intensity fixed and bright** so the scene always receives a direct key light.
+         */
         function updateSun(lat, lon) {
             const now = new Date();
             const pos = SunCalc.getPosition(now, lat, lon);
-            const elev = pos.altitude * 180 / Math.PI;
-            const az = pos.azimuth * 180 / Math.PI;
-            const phi = THREE.MathUtils.degToRad(90 - elev);
-            const th = THREE.MathUtils.degToRad(az);
+            const elev = pos.altitude;                         // radians
+            const az = pos.azimuth;                          // radians
+
+            const phi = THREE.MathUtils.degToRad(90) - elev;   // polar angle
+            const th = -az;                                   // azimuth sign flip
+
             sunVector.setFromSphericalCoords(1, phi, th);
             sky.material.uniforms.sunPosition.value.copy(sunVector);
+
+            // position the directional light far away in that direction
+            sunLight.position.copy(sunVector).multiplyScalar(100000);
+            sunLight.target.position.set(0, 0, 0);
+            sunLight.target.updateMatrixWorld();
+
             if (elev > 0) {
-                sunLight.intensity = 1.5 * (elev / 90 + 0.1);
+                sunLight.intensity = 4.0;          // fixed, punchy daylight
                 moonLight.visible = false;
             } else {
-                sunLight.intensity = 0;
+                sunLight.intensity = 0;            // sun below horizon
                 moonLight.visible = true;
                 moonLight.position.copy(sunVector).multiplyScalar(-100000);
                 moonLight.target.position.set(0, 0, 0);
                 moonLight.target.updateMatrixWorld();
             }
         }
+
 
         // ── Scene & Signaling Setup ─────────────────────────────────────────────
         const DEFAULT_SERVER = 'https://ipfs-signaling-vr.loca.lt';
@@ -517,7 +693,6 @@
             }, { once: true });
 
 
-            scene.add(new THREE.HemisphereLight(0x808080, 0x606060));
 
             window.addEventListener('keydown', e => { setMovement(e.code, true); scheduleSave(); });
             window.addEventListener('keyup', e => { setMovement(e.code, false); scheduleSave(); });
@@ -561,7 +736,7 @@
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 0.5;
+            renderer.toneMappingExposure = 1.1;
             document.body.appendChild(renderer.domElement);
             window.addEventListener('resize', onWindowResize);
         }
