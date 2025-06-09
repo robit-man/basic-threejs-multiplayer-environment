@@ -345,21 +345,48 @@
         grid.id = `${q},${r}`;
         grid.group.name = `tile-${grid.id}`;
 
-        // ── ZERO OUT EVERY VERTEX Y TO START FLAT AT 0 ─────────────────────────
+        // ── ZERO OUT EVERY VERTEX Y AND LIFT TO AVERAGE NEIGHBOR HEIGHT ───────
         const posAttr = grid.geometry.attributes.position;
         const tp = posAttr.array;
         const vCount = tp.length / 3;
+
+        // Compute this tile’s world X,Z
+        const a = this.tileRadius;
+        const worldX = a * (3 / 2 * q);
+        const worldZ = a * (Math.sqrt(3) / 2 * q + Math.sqrt(3) * r);
+
+        // Sample heights at the six neighbor-edge midpoints via inline raycast
+        const neighborDirs = [
+          [1, 0], [0, 1], [-1, 1],
+          [-1, 0], [0, -1], [1, -1]
+        ];
+        let sumH = 0, countH = 0;
+        for (const [dq, dr] of neighborDirs) {
+          const sampleX = worldX + a * (3 / 2 * dq);
+          const sampleZ = worldZ + a * (Math.sqrt(3) / 2 * dq + Math.sqrt(3) * dr);
+          raycaster.set(new THREE.Vector3(sampleX, RAY_START_H, sampleZ), DOWN);
+          const meshes = Array.from(this.tiles.values())
+            .map(({ grid }) => grid.mesh)
+            .filter(Boolean);
+          const inter = raycaster.intersectObjects(meshes, true);
+          if (inter.length > 0) {
+            sumH += inter[0].point.y;
+            countH++;
+          }
+        }
+        const avgEdgeH = countH > 0 ? sumH / countH : 0;
+
+        // Apply that average height to every vertex
         for (let vi = 0; vi < vCount; vi++) {
-          tp[3 * vi + 1] = 0;                // force y = 0 on every vertex
+          tp[3 * vi + 1] = avgEdgeH;
         }
         posAttr.needsUpdate = true;
         grid.geometry.computeVertexNormals();
 
-        // flat‐topped layout:
-        const a = this.tileRadius,
-          x = a * (3 / 2 * q),
-          z = a * (Math.sqrt(3) / 2 * q + Math.sqrt(3) * r);
-        grid.group.position.set(x, 0, z);
+        // Keep the tile group anchored at Y = 0
+        grid.group.position.set(worldX, 0, worldZ);
+
+
 
         scene.add(grid.group);
         this.tiles.set(grid.id, { grid, q, r });
