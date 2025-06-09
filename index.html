@@ -52,6 +52,20 @@
 </head>
 
 <body>
+    <div id="clearCacheBtn" style="position:absolute;top:10px;left:10px;
+    height:2rem;width:2rem;display:flex;
+    align-items:center;justify-content:center;
+    padding:0.5rem;border-radius:100%;background:#222;
+    color:#fffa;cursor:pointer;z-index:9999;
+    font-family:sans-serif;font-size:0.9rem;
+    user-select:none;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="1rem" height="1rem" viewBox="0 0 24 24" fill="none">
+            <path
+                d="M3 3V8M3 8H8M3 8L6 5.29168C7.59227 3.86656 9.69494 3 12 3C16.9706 3 21 7.02944 21 12C21 16.9706 16.9706 21 12 21C7.71683 21 4.13247 18.008 3.22302 14"
+                stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+
+    </div>
     <div id="modal">
         <div id="modal-content">
             <h2>Enter signaling server URL</h2>
@@ -95,6 +109,18 @@
         let slideVector = { x: 0, y: 0 }; // x=right+, y=down+
         let slideMagnitude = 0;    // 0–1
         let pendingTileSpawn = false;
+
+        // ► sprint variables (place above updateLocalMovement)
+        let sprintFactor = 1.0;
+        const SPRINT_ACCEL = 5.0;   // how fast we accelerate when holding Shift
+        const SPRINT_DECAY = 20.0;  // how fast we decelerate on release
+        const SPRINT_MAX = 10.0;  // max speed multiplier
+        let GLOBAL_ELEV_OFFSET = null;
+
+        document.getElementById('clearCacheBtn').onclick = () => {
+            localStorage.clear();
+            location.reload();
+        };
 
         function showMotionPrompt() {
             return new Promise(res => {
@@ -284,36 +310,80 @@
             addTile(q, r) {
                 const diameter = this.tileRadius * 2;
                 const grid = new UniformHexGrid100(this.spacing, diameter, this.amplitude);
+
+                // assign an id & name for debugging
+                grid.id = `${q},${r}`;
+                grid.group.name = `tile-${grid.id}`;
+
+                // ── ZERO OUT EVERY VERTEX Y TO START FLAT AT 0 ─────────────────────────
+                const posAttr = grid.geometry.attributes.position;
+                const tp = posAttr.array;
+                const vCount = tp.length / 3;
+                for (let vi = 0; vi < vCount; vi++) {
+                    tp[3 * vi + 1] = 0;                // force y = 0 on every vertex
+                }
+                posAttr.needsUpdate = true;
+                grid.geometry.computeVertexNormals();
+
                 // flat‐topped layout:
                 const a = this.tileRadius,
                     x = a * (3 / 2 * q),
                     z = a * (Math.sqrt(3) / 2 * q + Math.sqrt(3) * r);
                 grid.group.position.set(x, 0, z);
+
                 scene.add(grid.group);
-                this.tiles.set(`${q},${r}`, { grid, q, r });
+                this.tiles.set(grid.id, { grid, q, r });
+
+                // always fetch this tile’s own elevations once we know origin
+                const populate = () => {
+                    console.log(`[Tile] populating elevations for tile ${grid.id}`);
+                    rebuildElevations(grid);
+                };
+                if (origin) {
+                    populate();
+                } else {
+                    document.addEventListener('gps-updated', populate, { once: true });
+                }
             }
 
             update(position) {
-                const a = this.tileRadius,
-                    qf = ((Math.sqrt(3) / 3) * position.x - (1 / 3) * position.z) / a,
-                    rf = ((2 / 3) * position.z) / a,
-                    q0 = Math.round(qf), r0 = Math.round(rf),
-                    dq = qf - q0, dr = rf - r0, ds = -dq - dr,
-                    maxFrac = Math.max(Math.abs(dq), Math.abs(dr), Math.abs(ds));
+                const a = this.tileRadius;
+                // ← corrected inverse of the point→hex conversion for pointy‐topped layout
+                const qf = (2 / 3 * position.x) / a;
+                const rf = ((-1 / 3 * position.x) + (Math.sqrt(3) / 3 * position.z)) / a;
 
-                // only once you move past 90% to an edge
-                if (maxFrac < 0.9) return;
+                const q0 = Math.round(qf), r0 = Math.round(rf);
+                const dq = qf - q0, dr = rf - r0, ds = -dq - dr;
+                const maxFrac = Math.max(Math.abs(dq), Math.abs(dr), Math.abs(ds));
 
-                const dirs = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
-                let bestDot = 0, bestDir = null;
-                for (const [dqOff, drOff] of dirs) {
-                    const dot = dq * dqOff + dr * drOff;
-                    if (dot > bestDot) { bestDot = dot; bestDir = [dqOff, drOff]; }
+                // threshold in world‐units for expanding into a new tile
+                const unitsFromCenter = maxFrac * this.tileRadius;
+                const EXPAND_CENTER_THRESHOLD = 20;
+                console.log(
+                    `[TileEdge] unitsFromCenter=${unitsFromCenter.toFixed(2)}, ` +
+                    `threshold=${EXPAND_CENTER_THRESHOLD}`
+                );
+                if (unitsFromCenter < EXPAND_CENTER_THRESHOLD) return;
+
+                // pick neighbor by dot product against correct dq/dr offsets
+                const DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
+                let bestDot = -Infinity, bestDir = [0, 0];
+                for (const [dqOffCand, drOffCand] of DIRS) {
+                    const dotVal = dq * dqOffCand + dr * drOffCand;
+                    if (dotVal > bestDot) {
+                        bestDot = dotVal;
+                        bestDir = [dqOffCand, drOffCand];
+                    }
                 }
-                if (bestDir && bestDot > 0.7) {
-                    const [dqOff, drOff] = bestDir,
-                        key = `${q0 + dqOff},${r0 + drOff}`;
-                    if (!this.tiles.has(key)) this.addTile(q0 + dqOff, r0 + drOff);
+                const [dqOff, drOff] = bestDir;
+                console.log(
+                    `[TileEdge] bestDir=[${dqOff},${drOff}], dot=${bestDot.toFixed(3)}`
+                );
+
+                const key = `${q0 + dqOff},${r0 + drOff}`;
+                console.log(`[TileEdge] adding tile at ${key}`);
+                if (!this.tiles.has(key)) {
+                    this.addTile(q0 + dqOff, r0 + drOff);
                 }
             }
         }
@@ -323,10 +393,16 @@
 
 
         // ── GPS & Elevation Mapping ─────────────────────────────────────────────
-        const EKEY = 'elevCacheV1', ERAD = 100;
-        function loadCache() { try { return JSON.parse(localStorage.getItem(EKEY) || '[]'); } catch { return []; } }
-        function saveCache(a) { try { localStorage.setItem(EKEY, JSON.stringify(a)); } catch { } }
-        const elevCache = loadCache();
+        const EKEY = 'elevCacheV1';
+        function loadCache() {
+            try { return JSON.parse(localStorage.getItem(EKEY) || '{}'); }
+            catch { return {}; }
+        }
+        function saveCache(m) {
+            try { localStorage.setItem(EKEY, JSON.stringify(m)); }
+            catch { }
+        }
+        const elevCache = loadCache();  // now a map from "lat,lon" → elevation
 
         function haversine(lat1, lon1, lat2, lon2) {
             const R = 6371000;
@@ -337,14 +413,22 @@
                 Math.sin(dLon / 2) ** 2;
             return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         }
-        function cachedElev(lat, lon) {
-            for (const r of elevCache) {
-                if (haversine(lat, lon, r.lat, r.lon) <= ERAD) return r.elev;
-            }
-            return null;
+        function keyFor(lat, lon) {
+            // round to 6 decimals (~0.11 m) so cached keys match exactly
+            return `${lat.toFixed(6)},${lon.toFixed(6)}`;
         }
+
+        function cachedElev(lat, lon) {
+            const key = keyFor(lat, lon);
+            const val = elevCache[key];
+            console.log(`[elevCache] lookup ${key} → ${val != null ? 'HIT' : 'MISS'}`);
+            return val != null ? val : null;
+        }
+
         function addCache(lat, lon, e) {
-            elevCache.push({ lat, lon, e });
+            const key = keyFor(lat, lon);
+            console.log(`[elevCache] storing ${key} → elev=${e}`);
+            elevCache[key] = e;
             saveCache(elevCache);
         }
 
@@ -378,7 +462,8 @@
 
         function rebuildElevations(gridInstance) {
             if (!origin) return;
-
+            const CACHE_POINT_DELAY = 0;  // ms before applying each cached point
+            const API_POINT_DELAY_STEP = 20;  // ms increment per API‐fetched point
             // ── geometry handles ────────────────────────────────────────────────────
             const posAttr = gridInstance.geometry.attributes.position;
             const tp = posAttr.array;
@@ -436,22 +521,56 @@
 
             idxs.forEach(({ i }, order) => {
                 const ix = 3 * i;
-                const x = tp[ix];
-                const z = tp[ix + 2];
-                const latP = origin.lat + z / mLat;
-                const lonP = origin.lon + x / mLon;
+                const localX = tp[ix];
+                const localZ = tp[ix + 2];
+
+                // apply this tile’s world‐offset so neighbors mesh seamlessly
+                const worldX = gridInstance.group.position.x + localX;
+                const worldZ = gridInstance.group.position.z + localZ;
+                const latP = origin.lat + worldZ / mLat;
+                const lonP = origin.lon + worldX / mLon;
+
+                console.log(
+                    `[Elev] tile=${gridInstance.id}, idx=${i}, ` +
+                    `worldX=${worldX.toFixed(2)}, worldZ=${worldZ.toFixed(2)}, ` +
+                    `latP=${latP.toFixed(6)}, lonP=${lonP.toFixed(6)}`
+                );
 
                 const cached = cachedElev(latP, lonP);
-                const delay = cached != null ? 0 : order * 30;
+                const delay = cached != null
+                    ? CACHE_POINT_DELAY
+                    : order * API_POINT_DELAY_STEP;
+
+                console.log(
+                    `[Elev] idx=${i}, lat=${latP.toFixed(5)}, lon=${lonP.toFixed(5)}, ` +
+                    `source=${cached != null ? 'CACHE' : 'API'}, delay=${delay}ms`
+                );
+
+
+                // Assumes at top of script: let GLOBAL_ELEV_OFFSET = null;
 
                 const applyRaw = raw => {
                     if (normOff === null) {
                         if (order === 0) {
-                            // establish centre offset
+                            // ── establish centre offset ───────────────────────────
                             normOff = raw;
                             tp[ix + 1] = 0;                 // centre → 0 m
 
-                            // flush any earlier arrivals
+                            // ── set global baseline once ──────────────────────────
+                            if (GLOBAL_ELEV_OFFSET === null) {
+                                GLOBAL_ELEV_OFFSET = raw;
+                                console.log(`[GlobalElev] baseline set to ${GLOBAL_ELEV_OFFSET}`);
+                            }
+
+                            // ── align this tile to global baseline ────────────────
+                            const offsetY = raw - GLOBAL_ELEV_OFFSET;
+                            gridInstance.group.position.y = offsetY;
+                            console.log(
+                                `[TileElev] tile=${gridInstance.id} centreRaw=${raw.toFixed(2)} ` +
+                                `→ group.y=${offsetY.toFixed(2)}`
+                            );
+
+                            // ── flush any earlier arrivals ────────────────────────
                             pending.forEach(({ idx, rawVal }) => {
                                 const y = rawVal - normOff;
                                 tp[3 * idx + 1] = y;
@@ -461,7 +580,7 @@
                             });
                             pending.length = 0;
 
-                            // update colour/normal buffers for the centre
+                            // ── update colour/normal buffers for the centre ───────
                             gridInstance._minY = Math.min(gridInstance._minY, 0);
                             gridInstance._maxY = Math.max(gridInstance._maxY, 0);
                             setColour(i, 0);
@@ -473,6 +592,7 @@
                             pending.push({ idx: i, rawVal: raw });
                         }
                     } else {
+                        // ── normal application for non-centre vertices ────────
                         const y = raw - normOff;
                         tp[ix + 1] = y;
 
@@ -493,19 +613,26 @@
                     }
                 };
 
+
                 // schedule fetch / use cache
                 setTimeout(() => {
                     if (cached != null) {
+                        console.log(`[Elev] applying CACHE at idx=${i}`);
                         applyRaw(cached);
                     } else {
+                        console.log(`[Elev] fetching API for idx=${i}`);
                         fetch(`https://epqs.nationalmap.gov/v1/json?x=${lonP}&y=${latP}&wkid=4326&units=Meters`)
                             .then(r => r.json())
                             .then(d => {
                                 const raw = d.value != null ? d.value : 0;
+                                console.log(`[Elev] fetched API at idx=${i}, raw=${raw}`);
                                 addCache(latP, lonP, raw);
                                 applyRaw(raw);
                             })
-                            .catch(() => applyRaw(0));
+                            .catch(err => {
+                                console.error(`[Elev] API error idx=${i}`, err);
+                                applyRaw(0);
+                            });
                     }
                 }, delay);
             });
@@ -600,7 +727,7 @@
         const DEFAULT_SERVER = 'https://ipfs-signaling-vr.loca.lt';
         let socket, scene, camera, renderer, controls, dolly, gridInstance, gridMesh;
         const clock = new THREE.Clock();
-        const movement = { forward: false, backward: false, left: false, right: false };
+        const movement = { forward: false, backward: false, left: false, right: false, shift: false };
         const peerBalls = {};
         const raycaster = new THREE.Raycaster();
         const DOWN = new THREE.Vector3(0, -1, 0);
@@ -677,7 +804,7 @@
 
             initSky();
             // ── Initialize TileManager instead of single grid ─────────────────────
-            tileManager = new TileManager(1, 50, 5);
+            tileManager = new TileManager(5, 50, 5);
 
             // pull out the actual UniformHexGrid100 instance…
             const centralEntry = tileManager.tiles.get('0,0');
@@ -747,8 +874,10 @@
                 case 'KeyS': case 'ArrowDown': movement.backward = val; break;
                 case 'KeyA': case 'ArrowLeft': movement.left = val; break;
                 case 'KeyD': case 'ArrowRight': movement.right = val; break;
+                case 'ShiftLeft': case 'ShiftRight': movement.shift = val; break;
             }
         }
+
 
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -823,47 +952,48 @@
 
 
 
+
         function updateLocalMovement(delta) {
             const baseSpeed = 2.0;
 
+            // — adjust sprintFactor exponentially
+            if (movement.shift) {
+                sprintFactor = Math.min(SPRINT_MAX,
+                    sprintFactor * Math.exp(SPRINT_ACCEL * delta)
+                );
+            } else {
+                sprintFactor = Math.max(1.0,
+                    sprintFactor * Math.exp(-SPRINT_DECAY * delta)
+                );
+            }
             // camera axes
             const forward = new THREE.Vector3();
             camera.getWorldDirection(forward);
             forward.y = 0;
             forward.normalize();
-
-            // corrected right vector: forward × up
+            // corrected right vector
             const right = new THREE.Vector3()
                 .crossVectors(forward, new THREE.Vector3(0, 1, 0))
                 .normalize();
-
             // keyboard inputs
             let moveX = 0, moveZ = 0;
             if (movement.forward) moveZ += 1;
             if (movement.backward) moveZ -= 1;
             if (movement.left) moveX -= 1;
             if (movement.right) moveX += 1;
-
             // add slide vector
             moveX += slideVector.x * slideMagnitude;
             moveZ += -slideVector.y * slideMagnitude;
-
             const combined = new THREE.Vector3()
                 .addScaledVector(right, moveX)
                 .addScaledVector(forward, moveZ);
-
             if (combined.lengthSq() > 0) {
-                // speed scales with vector length
-                const speed = baseSpeed * combined.length();
+                // apply sprintFactor
+                const speed = baseSpeed * combined.length() * sprintFactor;
                 combined.normalize().multiplyScalar(speed * delta);
-
                 dolly.position.add(combined);
                 snapDolly();
-
-                // defer tile spawn until after render
                 pendingTileSpawn = true;
-
-                // broadcast movement/look
                 broadcastPosition();
             }
         }
