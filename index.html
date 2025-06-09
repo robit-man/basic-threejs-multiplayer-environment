@@ -2,83 +2,84 @@
 <html lang="en">
 
 <head>
-    <meta charset="UTF-8" />
-    <title>Threejs Multiplayer</title>
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-        }
+  <meta charset="UTF-8" />
+  <title>Threejs Multiplayer</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+    }
 
-        #modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100vw;
-            height: 100vh;
-            background: rgba(0, 0, 0, 0.75);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 10;
-        }
+    #modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.75);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
 
-        #modal.show {
-            display: flex;
-        }
+    #modal.show {
+      display: flex;
+    }
 
-        #modal-content {
-            background: #fff;
-            padding: 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-            font-family: sans-serif;
-            text-align: center;
-        }
+    #modal-content {
+      background: #fff;
+      padding: 1.5rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+      font-family: sans-serif;
+      text-align: center;
+    }
 
-        #modal-content input {
-            width: 300px;
-            padding: 0.5rem;
-            margin-top: 1rem;
-            font-size: 1rem;
-        }
+    #modal-content input {
+      width: 300px;
+      padding: 0.5rem;
+      margin-top: 1rem;
+      font-size: 1rem;
+    }
 
-        #modal-content button {
-            margin-top: 1rem;
-            padding: 0.5rem 1rem;
-            font-size: 1rem;
-        }
-    </style>
+    #modal-content button {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+    }
+  </style>
 </head>
 
 <body>
-    <div id="clearCacheBtn" style="position:absolute;top:10px;left:10px;
+  <div id="clearCacheBtn" style="position:absolute;top:10px;left:10px;
     height:2rem;width:2rem;display:flex;
     align-items:center;justify-content:center;
     padding:0.5rem;border-radius:100%;background:#222;
     color:#fffa;cursor:pointer;z-index:9999;
     font-family:sans-serif;font-size:0.9rem;
     user-select:none;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="1rem" height="1rem" viewBox="0 0 24 24" fill="none">
-            <path
-                d="M3 3V8M3 8H8M3 8L6 5.29168C7.59227 3.86656 9.69494 3 12 3C16.9706 3 21 7.02944 21 12C21 16.9706 16.9706 21 12 21C7.71683 21 4.13247 18.008 3.22302 14"
-                stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-        </svg>
+    <svg xmlns="http://www.w3.org/2000/svg" width="1rem" height="1rem" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M3 3V8M3 8H8M3 8L6 5.29168C7.59227 3.86656 9.69494 3 12 3C16.9706 3 21 7.02944 21 12C21 16.9706 16.9706 21 12 21C7.71683 21 4.13247 18.008 3.22302 14"
+        stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
 
+  </div>
+  <div id="modal">
+    <div id="modal-content">
+      <h2>Enter signaling server URL</h2>
+      <input id="serverUrl" type="text" placeholder="https://example.com" />
+      <br>
+      <button id="connectBtn">Connect</button>
     </div>
-    <div id="modal">
-        <div id="modal-content">
-            <h2>Enter signaling server URL</h2>
-            <input id="serverUrl" type="text" placeholder="https://example.com" />
-            <br>
-            <button id="connectBtn">Connect</button>
-        </div>
-    </div>
+  </div>
 
-    <!-- Dependencies -->
-    <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.js"></script>
-    <script type="importmap">
+  <!-- Dependencies -->
+  <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
+  <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.js"></script>
+  <script type="importmap">
   {
     "imports": {
       "three":               "https://cdn.jsdelivr.net/npm/three@0.177.0/build/three.module.min.js",
@@ -89,49 +90,74 @@
   }
   </script>
 
-    <script type="module">
-        import * as THREE from 'three';
-        import { Sky } from 'Sky';
-        import { PointerLockControls } from 'PointerLockControls';
-        import { io } from 'socket.io';
+  <script type="module">
+    import * as THREE from 'three';
+    import { Sky } from 'Sky';
+    import { PointerLockControls } from 'PointerLockControls';
+    import { io } from 'socket.io';
 
-        // ── Mobile Device Orientation Helpers ───────────────────────────────────
-        const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-        let orientationPermissionAsked = false;
-        let orientationOk = false;
-        let orientation = { alpha: 0, beta: 0, gamma: 0 };
-        let accel = { x: 0, y: 0, z: 0 };
-        let compassVal = 0;
-        // ——— slide–vector & touch handler with variable speed ———
-        let touchStart = null;
-        const touchThreshold = 10;   // px before activation
-        const maxSlideDist = 200;  // px mapped to full speed
-        let slideVector = { x: 0, y: 0 }; // x=right+, y=down+
-        let slideMagnitude = 0;    // 0–1
-        let pendingTileSpawn = false;
+    // ── Mobile Device Orientation Helpers ───────────────────────────────────
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    let orientationPermissionAsked = false;
+    let orientationOk = false;
+    let orientation = { alpha: 0, beta: 0, gamma: 0 };
+    let accel = { x: 0, y: 0, z: 0 };
+    let compassVal = 0;
+    // ——— slide–vector & touch handler with variable speed ———
+    let touchStart = null;
+    const touchThreshold = 10;   // px before activation
+    const maxSlideDist = 200;  // px mapped to full speed
+    let slideVector = { x: 0, y: 0 }; // x=right+, y=down+
+    let slideMagnitude = 0;    // 0–1
+    let pendingTileSpawn = false;
 
-        // ► sprint variables (place above updateLocalMovement)
-        let sprintFactor = 1.0;
-        const SPRINT_ACCEL = 5.0;   // how fast we accelerate when holding Shift
-        const SPRINT_DECAY = 20.0;  // how fast we decelerate on release
-        const SPRINT_MAX = 10.0;  // max speed multiplier
-        let GLOBAL_ELEV_OFFSET = null;
-        let GLOBAL_MIN_ELEV = Infinity;
-        let GLOBAL_MAX_ELEV = -Infinity;
+    // ► sprint variables (place above updateLocalMovement)
+    let sprintFactor = 1.0;
+    const SPRINT_ACCEL = 5.0;   // how fast we accelerate when holding Shift
+    const SPRINT_DECAY = 20.0;  // how fast we decelerate on release
+    const SPRINT_MAX = 10.0;  // max speed multiplier
+    let GLOBAL_ELEV_OFFSET = null;
+    let GLOBAL_MIN_ELEV = Infinity;
+    let GLOBAL_MAX_ELEV = -Infinity;
 
-        document.getElementById('clearCacheBtn').onclick = () => {
-            localStorage.clear();
-            location.reload();
-        };
+    document.getElementById('clearCacheBtn').onclick = () => {
+      localStorage.clear();
+      location.reload();
+    };
 
-        function showMotionPrompt() {
-            return new Promise(res => {
-                const wrap = document.createElement("div");
-                wrap.style.cssText = `
+
+    // bundle & compress a Float32 elevation array into localStorage
+    function cacheFullTile(q, r, posAttr) {
+      const arr = posAttr.array; // Float32Array
+      // extract only the Y-values:
+      const elevs = Array.from({ length: arr.length / 3 }, (_, i) => arr[3 * i + 1]);
+      const json = JSON.stringify(elevs);
+      const comp = LZString.compressToUTF16(json);
+      localStorage.setItem(`tile:${q},${r}`, comp);
+      console.log(`[TileCache] stored tile ${q},${r} (${json.length}→${comp.length} chars)`);
+    }
+
+    // load & decompress if available; returns an array of raw elevations or null
+    function loadFullTile(q, r) {
+      const comp = localStorage.getItem(`tile:${q},${r}`);
+      if (!comp) return null;
+      try {
+        const json = LZString.decompressFromUTF16(comp);
+        return JSON.parse(json);
+      } catch {
+        localStorage.removeItem(`tile:${q},${r}`); return null;
+      }
+    }
+
+
+    function showMotionPrompt() {
+      return new Promise(res => {
+        const wrap = document.createElement("div");
+        wrap.style.cssText = `
         position:fixed;inset:0;display:flex;
         align-items:center;justify-content:center;
         background:rgba(0,0,0,.65);z-index:9999`;
-                wrap.innerHTML = `
+        wrap.innerHTML = `
         <div style="background:#222;color:#fff;
                     padding:1rem 1.5rem;border-radius:8px;
                     max-width:260px;text-align:center;">
@@ -140,970 +166,921 @@
             <button id="perm-ok"   style="margin-right:.5rem;">Allow</button>
             <button id="perm-cancel">Deny</button>
         </div>`;
-                document.body.appendChild(wrap);
+        document.body.appendChild(wrap);
 
-                wrap.querySelector("#perm-ok").onclick = () => { wrap.remove(); res(true); };
-                wrap.querySelector("#perm-cancel").onclick = () => { wrap.remove(); res(false); };
-            });
+        wrap.querySelector("#perm-ok").onclick = () => { wrap.remove(); res(true); };
+        wrap.querySelector("#perm-cancel").onclick = () => { wrap.remove(); res(false); };
+      });
+    }
+
+    async function ensureOrientationPermission() {
+      if (!isMobile || orientationPermissionAsked) return;
+      orientationPermissionAsked = true;
+
+      const needIOSPrompt =
+        typeof DeviceOrientationEvent === "function" &&
+        typeof DeviceOrientationEvent.requestPermission === "function";
+
+      const ok = await showMotionPrompt();
+      if (!ok) return;
+
+      if (needIOSPrompt) {
+        try {
+          const status = await DeviceOrientationEvent.requestPermission();
+          if (status !== "granted") return;
+        } catch { return; }
+      }
+      registerMotionListeners(true);
+    }
+
+    function registerMotionListeners(replace = false) {
+      if (replace) {
+        window.removeEventListener("deviceorientation", handleOrientation, true);
+        window.removeEventListener("devicemotion", handleMotion, true);
+      }
+      window.addEventListener("deviceorientation", handleOrientation, true);
+      window.addEventListener("devicemotion", handleMotion, true);
+    }
+
+    function handleOrientation(ev) {
+      if (!orientationOk &&
+        ev.alpha === null && ev.beta === null && ev.gamma === null) {
+        ensureOrientationPermission();
+        return;
+      }
+      orientationOk = true;
+      orientation.alpha = ev.alpha ?? 0;
+      orientation.beta = ev.beta ?? 0;
+      orientation.gamma = ev.gamma ?? 0;
+    }
+
+    function handleMotion(ev) {
+      accel.x = ev.accelerationIncludingGravity?.x ?? 0;
+      accel.y = ev.accelerationIncludingGravity?.y ?? 0;
+      accel.z = ev.accelerationIncludingGravity?.z ?? 0;
+      compassVal = ev.rotationRate?.alpha ?? compassVal;
+    }
+
+    // start listening now (will no-op on desktop)
+    registerMotionListeners();
+
+    // ── Utilities ───────────────────────────────────────────────────────────
+    class Utils {
+      static smoothstep(t) { return t * t * (3 - 2 * t); }
+    }
+
+    class UniformHexGrid100 {
+      constructor(spacing = 1, size = 100, amplitude = 5) {
+        this.amplitude = amplitude;
+        this.spacing = spacing;        // ← make spacing available below
+        this.gridRadius = size / 2;       // hex “radius” in metres
+        this._generateAllRings();
+        this._buildGeometry();
+        this._initUserData();
+      }
+
+      _generateAllRings() {
+        const s = this.spacing;
+        const h = Math.sqrt(3) / 2 * s;
+        const N = Math.floor(this.gridRadius / s);
+
+        this.targetPositions = [];
+        this.triangles = [];
+        const idxMap = {};
+        let idx = 0;
+
+        // 1) place every triangular‐lattice point whose (i,j,i+j) coords lie within a cube‐radius N
+        for (let j = -N; j <= N; j++) {
+          for (let i = -N; i <= N; i++) {
+            if (Math.max(Math.abs(i), Math.abs(j), Math.abs(i + j)) > N) continue;
+            // map (i,j) → Cartesian on a triangular grid
+            const x = (i + j / 2) * s;
+            const z = j * h;
+
+            idxMap[`${i},${j}`] = idx;
+            this.targetPositions.push(x, 0, z);
+            idx++;
+          }
         }
 
-        async function ensureOrientationPermission() {
-            if (!isMobile || orientationPermissionAsked) return;
-            orientationPermissionAsked = true;
-
-            const needIOSPrompt =
-                typeof DeviceOrientationEvent === "function" &&
-                typeof DeviceOrientationEvent.requestPermission === "function";
-
-            const ok = await showMotionPrompt();
-            if (!ok) return;
-
-            if (needIOSPrompt) {
-                try {
-                    const status = await DeviceOrientationEvent.requestPermission();
-                    if (status !== "granted") return;
-                } catch { return; }
-            }
-            registerMotionListeners(true);
+        // 2) stitch each little quad into two triangles
+        for (let j = -N; j < N; j++) {
+          for (let i = -N; i < N; i++) {
+            const a = idxMap[`${i},${j}`],
+              b = idxMap[`${i + 1},${j}`],
+              c = idxMap[`${i},${j + 1}`],
+              d = idxMap[`${i + 1},${j + 1}`];
+            if (a != null && b != null && c != null) this.triangles.push(a, b, c);
+            if (b != null && d != null && c != null) this.triangles.push(b, d, c);
+          }
         }
+      }
 
-        function registerMotionListeners(replace = false) {
-            if (replace) {
-                window.removeEventListener("deviceorientation", handleOrientation, true);
-                window.removeEventListener("devicemotion", handleMotion, true);
-            }
-            window.addEventListener("deviceorientation", handleOrientation, true);
-            window.addEventListener("devicemotion", handleMotion, true);
+      _buildGeometry() {
+        const posAttr = new THREE.Float32BufferAttribute(
+          new Float32Array(this.targetPositions), 3
+        ).setUsage(THREE.DynamicDrawUsage);
+
+        // create a parallel colour buffer – initial flat medium-blue
+        const vCount = this.targetPositions.length / 3;
+        const colors = new Float32Array(vCount * 3);
+        for (let i = 0; i < vCount; i++) {          // RGB per-vertex
+          colors[3 * i + 0] = 0.2;                // r
+          colors[3 * i + 1] = 0.4;                // g
+          colors[3 * i + 2] = 0.8;                // b
         }
+        const colAttr = new THREE.Float32BufferAttribute(colors, 3)
+          .setUsage(THREE.DynamicDrawUsage);
 
-        function handleOrientation(ev) {
-            if (!orientationOk &&
-                ev.alpha === null && ev.beta === null && ev.gamma === null) {
-                ensureOrientationPermission();
-                return;
-            }
-            orientationOk = true;
-            orientation.alpha = ev.alpha ?? 0;
-            orientation.beta = ev.beta ?? 0;
-            orientation.gamma = ev.gamma ?? 0;
+        this.geometry = new THREE.BufferGeometry();
+        this.geometry.setAttribute('position', posAttr);
+        this.geometry.setAttribute('color', colAttr);
+        this.geometry.setIndex(this.triangles);
+        this.geometry.computeVertexNormals();
+      }
+
+      _initUserData() {
+        // shaded surface coloured per-vertex
+        const solidMat = new THREE.MeshStandardMaterial({
+          vertexColors: true,
+          side: THREE.DoubleSide,
+          flatShading: false
+        });
+
+        // thin black wireframe overlay
+        const wireMat = new THREE.MeshBasicMaterial({
+          color: 0x000000,
+          transparent: true,
+          opacity: 0.1,
+          wireframe: true
+        });
+
+        this.mesh = new THREE.Mesh(this.geometry, solidMat);
+        const wireMesh = new THREE.Mesh(this.geometry, wireMat);
+        wireMesh.renderOrder = 1;          // draw on top
+
+        this.mesh.castShadow = this.mesh.receiveShadow = true;
+
+        this.group = new THREE.Group();
+        this.group.add(this.mesh, wireMesh);
+      }
+
+      get object() { return this.group; }
+    }
+    // ── TileManager (flat‐topped axial layout + on‐demand expansion) ──────────
+    class TileManager {
+      constructor(spacing, tileRadius, amplitude, startQ = 0, startR = 0) {
+        this.spacing = spacing;
+        this.tileRadius = tileRadius;  // hex “radius” in meters
+        this.amplitude = amplitude;
+        this.tiles = new Map();
+        this.addTile(startQ, startR);
+      }
+
+      addTile(q, r) {
+        const diameter = this.tileRadius * 2;
+        const grid = new UniformHexGrid100(this.spacing, diameter, this.amplitude);
+
+        // assign an id & name for debugging
+        grid.id = `${q},${r}`;
+        grid.group.name = `tile-${grid.id}`;
+
+        // ── ZERO OUT EVERY VERTEX Y TO START FLAT AT 0 ─────────────────────────
+        const posAttr = grid.geometry.attributes.position;
+        const tp = posAttr.array;
+        const vCount = tp.length / 3;
+        for (let vi = 0; vi < vCount; vi++) {
+          tp[3 * vi + 1] = 0;                // force y = 0 on every vertex
         }
+        posAttr.needsUpdate = true;
+        grid.geometry.computeVertexNormals();
 
-        function handleMotion(ev) {
-            accel.x = ev.accelerationIncludingGravity?.x ?? 0;
-            accel.y = ev.accelerationIncludingGravity?.y ?? 0;
-            accel.z = ev.accelerationIncludingGravity?.z ?? 0;
-            compassVal = ev.rotationRate?.alpha ?? compassVal;
+        // flat‐topped layout:
+        const a = this.tileRadius,
+          x = a * (3 / 2 * q),
+          z = a * (Math.sqrt(3) / 2 * q + Math.sqrt(3) * r);
+        grid.group.position.set(x, 0, z);
+
+        scene.add(grid.group);
+        this.tiles.set(grid.id, { grid, q, r });
+
+        // always fetch this tile’s own elevations once we know origin
+        const populate = () => {
+          console.log(`[Tile] populating elevations for tile ${grid.id}`);
+          rebuildElevations(grid);
+        };
+        if (origin) {
+          populate();
+        } else {
+          document.addEventListener('gps-updated', populate, { once: true });
         }
+      }
 
-        // start listening now (will no-op on desktop)
-        registerMotionListeners();
+      update(position) {
+        const a = this.tileRadius;
+        // ← corrected inverse of the point→hex conversion for pointy‐topped layout
+        const qf = (2 / 3 * position.x) / a;
+        const rf = ((-1 / 3 * position.x) + (Math.sqrt(3) / 3 * position.z)) / a;
 
-        // ── Utilities ───────────────────────────────────────────────────────────
-        class Utils {
-            static smoothstep(t) { return t * t * (3 - 2 * t); }
+        const q0 = Math.round(qf), r0 = Math.round(rf);
+        const dq = qf - q0, dr = rf - r0, ds = -dq - dr;
+        const maxFrac = Math.max(Math.abs(dq), Math.abs(dr), Math.abs(ds));
+
+        // threshold in world‐units for expanding into a new tile
+        const unitsFromCenter = maxFrac * this.tileRadius;
+        const EXPAND_CENTER_THRESHOLD = 15;
+        console.log(
+          `[TileEdge] unitsFromCenter=${unitsFromCenter.toFixed(2)}, ` +
+          `threshold=${EXPAND_CENTER_THRESHOLD}`
+        );
+        if (unitsFromCenter < EXPAND_CENTER_THRESHOLD) return;
+
+        // pick neighbor by dot product against correct dq/dr offsets
+        // pick up to two neighbors so corners spawn both edges
+        const DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
+        // compute dot products against our fractional offset
+        const dots = DIRS.map(([dqOff, drOff]) => ({
+          dir: [dqOff, drOff],
+          dot: dq * dqOff + dr * drOff
+        }));
+        // sort descending so dots[0] is best, dots[1] is second-best
+        dots.sort((a, b) => b.dot - a.dot);
+
+        // always add the best
+        const toAdd = [dots[0].dir];
+        // if the second-best is close enough (i.e. we're near a corner), add it too
+        if (dots[1].dot > 0.5 * dots[0].dot) {
+          toAdd.push(dots[1].dir);
         }
-
-        class UniformHexGrid100 {
-            constructor(spacing = 1, size = 100, amplitude = 5) {
-                this.amplitude = amplitude;
-                this.spacing = spacing;        // ← make spacing available below
-                this.gridRadius = size / 2;       // hex “radius” in metres
-                this._generateAllRings();
-                this._buildGeometry();
-                this._initUserData();
-            }
-
-            _generateAllRings() {
-                const s = this.spacing;
-                const h = Math.sqrt(3) / 2 * s;
-                const N = Math.floor(this.gridRadius / s);
-
-                this.targetPositions = [];
-                this.triangles = [];
-                const idxMap = {};
-                let idx = 0;
-
-                // 1) place every triangular‐lattice point whose (i,j,i+j) coords lie within a cube‐radius N
-                for (let j = -N; j <= N; j++) {
-                    for (let i = -N; i <= N; i++) {
-                        if (Math.max(Math.abs(i), Math.abs(j), Math.abs(i + j)) > N) continue;
-                        // map (i,j) → Cartesian on a triangular grid
-                        const x = (i + j / 2) * s;
-                        const z = j * h;
-
-                        idxMap[`${i},${j}`] = idx;
-                        this.targetPositions.push(x, 0, z);
-                        idx++;
-                    }
-                }
-
-                // 2) stitch each little quad into two triangles
-                for (let j = -N; j < N; j++) {
-                    for (let i = -N; i < N; i++) {
-                        const a = idxMap[`${i},${j}`],
-                            b = idxMap[`${i + 1},${j}`],
-                            c = idxMap[`${i},${j + 1}`],
-                            d = idxMap[`${i + 1},${j + 1}`];
-                        if (a != null && b != null && c != null) this.triangles.push(a, b, c);
-                        if (b != null && d != null && c != null) this.triangles.push(b, d, c);
-                    }
-                }
-            }
-
-            _buildGeometry() {
-                const posAttr = new THREE.Float32BufferAttribute(
-                    new Float32Array(this.targetPositions), 3
-                ).setUsage(THREE.DynamicDrawUsage);
-
-                // create a parallel colour buffer – initial flat medium-blue
-                const vCount = this.targetPositions.length / 3;
-                const colors = new Float32Array(vCount * 3);
-                for (let i = 0; i < vCount; i++) {          // RGB per-vertex
-                    colors[3 * i + 0] = 0.2;                // r
-                    colors[3 * i + 1] = 0.4;                // g
-                    colors[3 * i + 2] = 0.8;                // b
-                }
-                const colAttr = new THREE.Float32BufferAttribute(colors, 3)
-                    .setUsage(THREE.DynamicDrawUsage);
-
-                this.geometry = new THREE.BufferGeometry();
-                this.geometry.setAttribute('position', posAttr);
-                this.geometry.setAttribute('color', colAttr);
-                this.geometry.setIndex(this.triangles);
-                this.geometry.computeVertexNormals();
-            }
-
-            _initUserData() {
-                // shaded surface coloured per-vertex
-                const solidMat = new THREE.MeshStandardMaterial({
-                    vertexColors: true,
-                    side: THREE.DoubleSide,
-                    flatShading: false
-                });
-
-                // thin black wireframe overlay
-                const wireMat = new THREE.MeshBasicMaterial({
-                    color: 0x000000,
-                    wireframe: true
-                });
-
-                this.mesh = new THREE.Mesh(this.geometry, solidMat);
-                const wireMesh = new THREE.Mesh(this.geometry, wireMat);
-                wireMesh.renderOrder = 1;          // draw on top
-
-                this.mesh.castShadow = this.mesh.receiveShadow = true;
-
-                this.group = new THREE.Group();
-                this.group.add(this.mesh, wireMesh);
-            }
-
-            get object() { return this.group; }
-        }
-        // ── TileManager (flat‐topped axial layout + on‐demand expansion) ──────────
-        class TileManager {
-            constructor(spacing, tileRadius, amplitude) {
-                this.spacing = spacing;
-                this.tileRadius = tileRadius;  // hex “radius” in meters
-                this.amplitude = amplitude;
-                this.tiles = new Map();
-                this.addTile(0, 0);
-            }
-
-            addTile(q, r) {
-                const diameter = this.tileRadius * 2;
-                const grid = new UniformHexGrid100(this.spacing, diameter, this.amplitude);
-
-                // assign an id & name for debugging
-                grid.id = `${q},${r}`;
-                grid.group.name = `tile-${grid.id}`;
-
-                // ── ZERO OUT EVERY VERTEX Y TO START FLAT AT 0 ─────────────────────────
-                const posAttr = grid.geometry.attributes.position;
-                const tp = posAttr.array;
-                const vCount = tp.length / 3;
-                for (let vi = 0; vi < vCount; vi++) {
-                    tp[3 * vi + 1] = 0;                // force y = 0 on every vertex
-                }
-                posAttr.needsUpdate = true;
-                grid.geometry.computeVertexNormals();
-
-                // flat‐topped layout:
-                const a = this.tileRadius,
-                    x = a * (3 / 2 * q),
-                    z = a * (Math.sqrt(3) / 2 * q + Math.sqrt(3) * r);
-                grid.group.position.set(x, 0, z);
-
-                scene.add(grid.group);
-                this.tiles.set(grid.id, { grid, q, r });
-
-                // always fetch this tile’s own elevations once we know origin
-                const populate = () => {
-                    console.log(`[Tile] populating elevations for tile ${grid.id}`);
-                    rebuildElevations(grid);
-                };
-                if (origin) {
-                    populate();
-                } else {
-                    document.addEventListener('gps-updated', populate, { once: true });
-                }
-            }
-
-            update(position) {
-                const a = this.tileRadius;
-                // ← corrected inverse of the point→hex conversion for pointy‐topped layout
-                const qf = (2 / 3 * position.x) / a;
-                const rf = ((-1 / 3 * position.x) + (Math.sqrt(3) / 3 * position.z)) / a;
-
-                const q0 = Math.round(qf), r0 = Math.round(rf);
-                const dq = qf - q0, dr = rf - r0, ds = -dq - dr;
-                const maxFrac = Math.max(Math.abs(dq), Math.abs(dr), Math.abs(ds));
-
-                // threshold in world‐units for expanding into a new tile
-                const unitsFromCenter = maxFrac * this.tileRadius;
-                const EXPAND_CENTER_THRESHOLD = 20;
-                console.log(
-                    `[TileEdge] unitsFromCenter=${unitsFromCenter.toFixed(2)}, ` +
-                    `threshold=${EXPAND_CENTER_THRESHOLD}`
-                );
-                if (unitsFromCenter < EXPAND_CENTER_THRESHOLD) return;
-
-                // pick neighbor by dot product against correct dq/dr offsets
-                const DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
-                let bestDot = -Infinity, bestDir = [0, 0];
-                for (const [dqOffCand, drOffCand] of DIRS) {
-                    const dotVal = dq * dqOffCand + dr * drOffCand;
-                    if (dotVal > bestDot) {
-                        bestDot = dotVal;
-                        bestDir = [dqOffCand, drOffCand];
-                    }
-                }
-                const [dqOff, drOff] = bestDir;
-                console.log(
-                    `[TileEdge] bestDir=[${dqOff},${drOff}], dot=${bestDot.toFixed(3)}`
-                );
-
-                const key = `${q0 + dqOff},${r0 + drOff}`;
-                console.log(`[TileEdge] adding tile at ${key}`);
-                if (!this.tiles.has(key)) {
+        /*
+                for (const [dqOff, drOff] of toAdd) {
+                  console.log(
+                    `[TileEdge] adding corner‐aware neighbor at [${dqOff},${drOff}]`
+                  );
+                  const key = `${q0 + dqOff},${r0 + drOff}`;
+                  if (!this.tiles.has(key)) {
                     this.addTile(q0 + dqOff, r0 + drOff);
-                }
+                  }
+                }*/
+        for (const [dqOff, drOff] of toAdd) {
+          // primary spawn
+          const newQ = q0 + dqOff, newR = r0 + drOff;
+          console.log(`[TileEdge] aggressively adding tile at ${newQ},${newR}`);
+          const primaryKey = `${newQ},${newR}`;
+          if (!this.tiles.has(primaryKey)) {
+            this.addTile(newQ, newR);
+          }
+
+          // then branch out: spawn any missing neighbor around the newly created tile
+          const DIRS2 = [
+            [1, 0], [0, 1], [-1, 1],
+            [-1, 0], [0, -1], [1, -1]
+          ];
+          for (const [dq2, dr2] of DIRS2) {
+            const branchKey = `${newQ + dq2},${newR + dr2}`;
+            if (!this.tiles.has(branchKey)) {
+              console.log(`[TileEdge] branching spawn at ${branchKey}`);
+              this.addTile(newQ + dq2, newR + dr2);
             }
+          }
         }
 
+      }
+    }
 
-        let tileManager;
+
+    let tileManager;
 
 
-        // ── GPS & Elevation Mapping ─────────────────────────────────────────────
-        const EKEY = 'elevCacheV1';
-        function loadCache() {
-            try { return JSON.parse(localStorage.getItem(EKEY) || '{}'); }
-            catch { return {}; }
+    // ── GPS & Elevation Mapping ─────────────────────────────────────────────
+    const EKEY = 'elevCacheV1';
+    function loadCache() {
+      try { return JSON.parse(localStorage.getItem(EKEY) || '{}'); }
+      catch { return {}; }
+    }
+    function saveCache(m) {
+      try { localStorage.setItem(EKEY, JSON.stringify(m)); }
+      catch { }
+    }
+    const elevCache = loadCache();  // now a map from "lat,lon" → elevation
+
+    function haversine(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) ** 2;
+      return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+    function keyFor(lat, lon) {
+      // round to 6 decimals (~0.11 m) so cached keys match exactly
+      return `${lat.toFixed(6)},${lon.toFixed(6)}`;
+    }
+
+    function cachedElev(lat, lon) {
+      const key = keyFor(lat, lon);
+      const val = elevCache[key];
+      console.log(`[elevCache] lookup ${key} → ${val != null ? 'HIT' : 'MISS'}`);
+      return val != null ? val : null;
+    }
+
+    function addCache(lat, lon, e) {
+      const key = keyFor(lat, lon);
+      console.log(`[elevCache] storing ${key} → elev=${e}`);
+      elevCache[key] = e;
+      saveCache(elevCache);
+    }
+
+    let origin = null;
+    function activateGpsMapping(gridInstance) {
+      window.addEventListener('load', () => startGps(gridInstance));
+      if (/Mobi|Android/i.test(navigator.userAgent)) {
+        setTimeout(() => startGps(gridInstance), 5000);
+      }
+    }
+    function startGps(gridInstance) {
+      if (!navigator.geolocation) return console.error('Geolocation unsupported');
+      const handler = pos => {
+        const { latitude: lat, longitude: lon } = pos.coords;
+        if (!origin) {
+          const s = localStorage.getItem('userGpsOrigin');
+          if (s) origin = JSON.parse(s);
+          else {
+            origin = { lat, lon };
+            localStorage.setItem('userGpsOrigin', JSON.stringify(origin));
+          }
         }
-        function saveCache(m) {
-            try { localStorage.setItem(EKEY, JSON.stringify(m)); }
-            catch { }
+        document.dispatchEvent(new CustomEvent('gps-updated', { detail: { lat, lon } }));
+      };
+      navigator.geolocation.getCurrentPosition(handler, e => console.error(e));
+      navigator.geolocation.watchPosition(handler, e => console.error(e), {
+        enableHighAccuracy: true,
+        maximumAge: 10000
+      });
+    }
+
+    function rebuildElevations(gridInstance) {
+      if (!origin) return;
+
+      const CACHE_POINT_DELAY = 0;
+      const API_POINT_DELAY_STEP = 20;
+
+      const posAttr = gridInstance.geometry.attributes.position;
+      const tp = posAttr.array;
+      const vCount = tp.length / 3;
+      const [q, r] = gridInstance.id.split(',').map(Number);
+
+      let colAttr = gridInstance.geometry.attributes.color;
+      if (!colAttr) {
+        const colours = new Float32Array(vCount * 3);
+        colAttr = new THREE.Float32BufferAttribute(colours, 3)
+          .setUsage(THREE.DynamicDrawUsage);
+        gridInstance.geometry.setAttribute('color', colAttr);
+      }
+      const colArr = colAttr.array;
+
+      function setColour(idx, y) {
+        GLOBAL_MIN_ELEV = Math.min(GLOBAL_MIN_ELEV, y);
+        GLOBAL_MAX_ELEV = Math.max(GLOBAL_MAX_ELEV, y);
+        const span = Math.max(1e-6, GLOBAL_MAX_ELEV - GLOBAL_MIN_ELEV);
+        const t = THREE.MathUtils.clamp((y - GLOBAL_MIN_ELEV) / span, 0, 1);
+        colArr[3 * idx + 0] = t;
+        colArr[3 * idx + 1] = 0.4 + 0.6 * t;
+        colArr[3 * idx + 2] = 0.8 * (1 - t);
+      }
+
+      function recolourAll() {
+        const span = Math.max(1e-6, GLOBAL_MAX_ELEV - GLOBAL_MIN_ELEV);
+        for (const { grid } of tileManager.tiles.values()) {
+          const pa = grid.geometry.attributes.position.array;
+          const ca = grid.geometry.attributes.color.array;
+          const n = pa.length / 3;
+          for (let vi = 0; vi < n; vi++) {
+            const yv = pa[3 * vi + 1];
+            const tt = THREE.MathUtils.clamp((yv - GLOBAL_MIN_ELEV) / span, 0, 1);
+            ca[3 * vi + 0] = tt;
+            ca[3 * vi + 1] = 0.4 + 0.6 * tt;
+            ca[3 * vi + 2] = 0.8 * (1 - tt);
+          }
+          grid.geometry.attributes.color.needsUpdate = true;
         }
-        const elevCache = loadCache();  // now a map from "lat,lon" → elevation
+      }
 
-        function haversine(lat1, lon1, lat2, lon2) {
-            const R = 6371000;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = Math.sin(dLat / 2) ** 2 +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLon / 2) ** 2;
-            return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const elevs = loadFullTile(q, r);
+      if (elevs) {
+        for (let i = 0; i < elevs.length; i++) {
+          tp[3 * i + 1] = elevs[i];
         }
-        function keyFor(lat, lon) {
-            // round to 6 decimals (~0.11 m) so cached keys match exactly
-            return `${lat.toFixed(6)},${lon.toFixed(6)}`;
+        posAttr.needsUpdate = true;
+        gridInstance.geometry.computeVertexNormals();
+        for (let i = 0; i < elevs.length; i++) {
+          setColour(i, elevs[i]);
         }
+        colAttr.needsUpdate = true;
+        console.log(`[TileCache] loaded tile ${q},${r}`);
+        return;
+      }
 
-        function cachedElev(lat, lon) {
-            const key = keyFor(lat, lon);
-            const val = elevCache[key];
-            console.log(`[elevCache] lookup ${key} → ${val != null ? 'HIT' : 'MISS'}`);
-            return val != null ? val : null;
+      gridInstance._minY = gridInstance._minY ?? Infinity;
+      gridInstance._maxY = gridInstance._maxY ?? -Infinity;
+
+      const mLat = 111320;
+      const mLon = 111320 * Math.cos(origin.lat * Math.PI / 180);
+
+      const idxs = Array.from({ length: vCount }, (_, i) => ({
+        i,
+        d: Math.hypot(tp[3 * i], tp[3 * i + 2])
+      })).sort((a, b) => b.d - a.d);
+
+      let appliedCount = 0;
+
+      function applyRaw(idx, raw) {
+        const ix = 3 * idx;
+        tp[ix + 1] = raw;
+        gridInstance._minY = Math.min(gridInstance._minY, raw);
+        gridInstance._maxY = Math.max(gridInstance._maxY, raw);
+        setColour(idx, raw);
+        colAttr.needsUpdate = true;
+        posAttr.needsUpdate = true;
+        gridInstance.geometry.computeVertexNormals();
+        appliedCount++;
+        if (appliedCount === idxs.length) {
+          cacheFullTile(q, r, posAttr);
+          console.log(`[TileCache] fully cached tile ${q},${r}`);
         }
-
-        function addCache(lat, lon, e) {
-            const key = keyFor(lat, lon);
-            console.log(`[elevCache] storing ${key} → elev=${e}`);
-            elevCache[key] = e;
-            saveCache(elevCache);
-        }
-
-        let origin = null;
-        function activateGpsMapping(gridInstance) {
-            window.addEventListener('load', () => startGps(gridInstance));
-            if (/Mobi|Android/i.test(navigator.userAgent)) {
-                setTimeout(() => startGps(gridInstance), 5000);
-            }
-        }
-        function startGps(gridInstance) {
-            if (!navigator.geolocation) return console.error('Geolocation unsupported');
-            const handler = pos => {
-                const { latitude: lat, longitude: lon } = pos.coords;
-                if (!origin) {
-                    const s = localStorage.getItem('userGpsOrigin');
-                    if (s) origin = JSON.parse(s);
-                    else {
-                        origin = { lat, lon };
-                        localStorage.setItem('userGpsOrigin', JSON.stringify(origin));
-                    }
-                }
-                document.dispatchEvent(new CustomEvent('gps-updated', { detail: { lat, lon } }));
-            };
-            navigator.geolocation.getCurrentPosition(handler, e => console.error(e));
-            navigator.geolocation.watchPosition(handler, e => console.error(e), {
-                enableHighAccuracy: true,
-                maximumAge: 10000
-            });
-        }
-
-        function rebuildElevations(gridInstance) {
-            if (!origin) return;
-            const CACHE_POINT_DELAY = 0;  // ms before applying each cached point
-            const API_POINT_DELAY_STEP = 20;  // ms increment per API‐fetched point
-            // ── geometry handles ────────────────────────────────────────────────────
-            const posAttr = gridInstance.geometry.attributes.position;
-            const tp = posAttr.array;
-            const vCount = tp.length / 3;
-
-            // ensure a colour buffer exists (RGB per vertex)
-            let colAttr = gridInstance.geometry.attributes.color;
-            if (!colAttr) {
-                const colors = new Float32Array(vCount * 3);
-                colAttr = new THREE.Float32BufferAttribute(colors, 3).setUsage(THREE.DynamicDrawUsage);
-                gridInstance.geometry.setAttribute('color', colAttr);
-            }
-            const colArr = colAttr.array;
-
-            // running min/max elevation to map colours
-            gridInstance._minY = gridInstance._minY ?? Infinity;
-            gridInstance._maxY = gridInstance._maxY ?? -Infinity;
-
-            // ── helpers ─────────────────────────────────────────────────────────────
-            const mLat = 111320;
-            const mLon = 111320 * Math.cos(origin.lat * Math.PI / 180);
-
-            // colour ramp: deep-blue → bright-yellow
-            // unified colour ramp across every tile, based on global extremes
-            const setColour = (idx, y) => {
-                // update global min/max
-                GLOBAL_MIN_ELEV = Math.min(GLOBAL_MIN_ELEV, y);
-                GLOBAL_MAX_ELEV = Math.max(GLOBAL_MAX_ELEV, y);
-
-                const span = Math.max(1e-6, GLOBAL_MAX_ELEV - GLOBAL_MIN_ELEV);
-                const t = THREE.MathUtils.clamp((y - GLOBAL_MIN_ELEV) / span, 0, 1);
-
-                // deep-blue → bright-yellow
-                colArr[3 * idx + 0] = t;                  // r
-                colArr[3 * idx + 1] = 0.4 + 0.6 * t;      // g
-                colArr[3 * idx + 2] = 0.8 * (1 - t);      // b
-            };
-
-            // recolour every tile whenever the global scale changes
-            const recolourAll = () => {
-                const span = Math.max(1e-6, GLOBAL_MAX_ELEV - GLOBAL_MIN_ELEV);
-                for (const { grid } of tileManager.tiles.values()) {
-                    const posArr = grid.geometry.attributes.position.array;
-                    const colArr2 = grid.geometry.attributes.color.array;
-                    const count = posArr.length / 3;
-
-                    for (let vi = 0; vi < count; vi++) {
-                        const yv = posArr[3 * vi + 1];
-                        const t = THREE.MathUtils.clamp((yv - GLOBAL_MIN_ELEV) / span, 0, 1);
-                        colArr2[3 * vi + 0] = t;
-                        colArr2[3 * vi + 1] = 0.4 + 0.6 * t;
-                        colArr2[3 * vi + 2] = 0.8 * (1 - t);
-                    }
-
-                    grid.geometry.attributes.color.needsUpdate = true;
-                }
-            };
-
-            let normOff = null;            // centre elevation once fetched
-            const pending = [];            // points fetched before normOff known
-
-            // list vertices by distance (idxs[0] is the centre)
-            const idxs = Array.from({ length: vCount }, (_, i) => ({
-                i,
-                d: Math.hypot(tp[3 * i], tp[3 * i + 2])
-            })).sort((a, b) => a.d - b.d);
-
-            idxs.forEach(({ i }, order) => {
-                const ix = 3 * i;
-                const localX = tp[ix];
-                const localZ = tp[ix + 2];
-
-                // apply this tile’s world‐offset so neighbors mesh seamlessly
-                const worldX = gridInstance.group.position.x + localX;
-                const worldZ = gridInstance.group.position.z + localZ;
-                const latP = origin.lat + worldZ / mLat;
-                const lonP = origin.lon + worldX / mLon;
-
-                console.log(
-                    `[Elev] tile=${gridInstance.id}, idx=${i}, ` +
-                    `worldX=${worldX.toFixed(2)}, worldZ=${worldZ.toFixed(2)}, ` +
-                    `latP=${latP.toFixed(6)}, lonP=${lonP.toFixed(6)}`
-                );
-
-                const cached = cachedElev(latP, lonP);
-                const delay = cached != null
-                    ? CACHE_POINT_DELAY
-                    : order * API_POINT_DELAY_STEP;
-
-                console.log(
-                    `[Elev] idx=${i}, lat=${latP.toFixed(5)}, lon=${lonP.toFixed(5)}, ` +
-                    `source=${cached != null ? 'CACHE' : 'API'}, delay=${delay}ms`
-                );
-
-
-                // Assumes at top of script: let GLOBAL_ELEV_OFFSET = null;
-
-                const applyRaw = raw => {
-                    if (normOff === null) {
-                        if (order === 0) {
-                            // ── establish centre offset ───────────────────────────
-                            normOff = raw;
-                            tp[ix + 1] = 0;                 // centre → 0 m
-
-                            // ── set global baseline once ──────────────────────────
-                            if (GLOBAL_ELEV_OFFSET === null) {
-                                GLOBAL_ELEV_OFFSET = raw;
-                                console.log(`[GlobalElev] baseline set to ${GLOBAL_ELEV_OFFSET}`);
-                            }
-
-                            // ── align this tile to global baseline ────────────────
-                            const offsetY = raw - GLOBAL_ELEV_OFFSET;
-                            gridInstance.group.position.y = offsetY;
-                            console.log(
-                                `[TileElev] tile=${gridInstance.id} centreRaw=${raw.toFixed(2)} ` +
-                                `→ group.y=${offsetY.toFixed(2)}`
-                            );
-
-                            // ── flush any earlier arrivals ────────────────────────
-                            pending.forEach(({ idx, rawVal }) => {
-                                const y = rawVal - normOff;
-                                tp[3 * idx + 1] = y;
-                                gridInstance._minY = Math.min(gridInstance._minY, y);
-                                gridInstance._maxY = Math.max(gridInstance._maxY, y);
-                                setColour(idx, y);
-                            });
-                            pending.length = 0;
-
-                            // ── update colour/normal buffers for the centre ───────
-                            gridInstance._minY = Math.min(gridInstance._minY, 0);
-                            gridInstance._maxY = Math.max(gridInstance._maxY, 0);
-                            setColour(i, 0);
-                            colAttr.needsUpdate = true;
-                            posAttr.needsUpdate = true;
-                            gridInstance.geometry.computeVertexNormals();
-                        } else {
-                            // hold until we know normOff
-                            pending.push({ idx: i, rawVal: raw });
-                        }
-                    } else {
-                        // ── normal application for non-centre vertices ────────
-                        const y = raw - normOff;
-                        tp[ix + 1] = y;
-
-                        // extend range?
-                        let rangeChanged = false;
-                        if (y < gridInstance._minY) { gridInstance._minY = y; rangeChanged = true; }
-                        if (y > gridInstance._maxY) { gridInstance._maxY = y; rangeChanged = true; }
-
-                        if (rangeChanged) {
-                            recolourAll();
-                        } else {
-                            setColour(i, y);
-                            colAttr.needsUpdate = true;
-                        }
-
-                        posAttr.needsUpdate = true;
-                        gridInstance.geometry.computeVertexNormals();
-                    }
-                };
-
-
-                // schedule fetch / use cache
-                setTimeout(() => {
-                    if (cached != null) {
-                        console.log(`[Elev] applying CACHE at idx=${i}`);
-                        applyRaw(cached);
-                    } else {
-                        console.log(`[Elev] fetching API for idx=${i}`);
-                        fetch(`https://epqs.nationalmap.gov/v1/json?x=${lonP}&y=${latP}&wkid=4326&units=Meters`)
-                            .then(r => r.json())
-                            .then(d => {
-                                const raw = d.value != null ? d.value : 0;
-                                console.log(`[Elev] fetched API at idx=${i}, raw=${raw}`);
-                                addCache(latP, lonP, raw);
-                                applyRaw(raw);
-                            })
-                            .catch(err => {
-                                console.error(`[Elev] API error idx=${i}`, err);
-                                applyRaw(0);
-                            });
-                    }
-                }, delay);
-            });
-
-            // safety pass – smooth first-ring spikes then recolour if needed
-            setTimeout(() => {
-                if (normOff === null) return;
-                const threshold = 25;
-                let changed = false;
-                for (let k = 0; k < Math.min(7, idxs.length); k++) {
-                    const idx = idxs[k].i;
-                    const y = tp[3 * idx + 1];
-                    if (Math.abs(y) > threshold) {
-                        tp[3 * idx + 1] = 0;
-                        changed = true;
-                    }
-                }
-                if (changed) {
-                    recolourAll();
-                    posAttr.needsUpdate = true;
-                    gridInstance.geometry.computeVertexNormals();
-                }
-            }, 2000);
-        }
-
-        let sky, sunVector, sunLight, moonLight;
-        function initSky() {
-            // physical sky dome
-            sky = new Sky();
-            sky.scale.setScalar(450000);
-            scene.add(sky);
-
-            sunVector = new THREE.Vector3();
-
-            // ultra-hard key light: high intensity, narrow angular diameter
-            sunLight = new THREE.DirectionalLight(0xffffff, 4.0);   // brighter & harsher
-            sunLight.castShadow = true;
-            sunLight.shadow.mapSize.set(8192, 8192);                // razor-sharp shadows
-            sunLight.shadow.bias = -0.0004;
-            sunLight.shadow.normalBias = 0.001;
-            scene.add(sunLight);
-
-            // almost no ambient fill – let shadows go dark
-            const hemi = new THREE.HemisphereLight(0x404040, 0x202020, 0.08);
-            scene.add(hemi);
-
-            // subtle rim/back light to separate silhouettes (cool tint, very low)
-            const rimLight = new THREE.DirectionalLight(0x7aa7ff, 0.15);
-            rimLight.position.set(-0.4, 0.3, -0.4).normalize();
-            scene.add(rimLight);
-
-            // moonlight kept but dimmed further
-            moonLight = new THREE.DirectionalLight(0x8899bb, 0.08);
-            scene.add(moonLight);
-        }
-
-        /**
-         * Positions the sun straight from real-world azimuth/elevation but **keeps
-         * intensity fixed and bright** so the scene always receives a direct key light.
-         */
-        function updateSun(lat, lon) {
-            const now = new Date();
-            const pos = SunCalc.getPosition(now, lat, lon);
-            const elev = pos.altitude;                         // radians
-            const az = pos.azimuth;                          // radians
-
-            const phi = THREE.MathUtils.degToRad(90) - elev;   // polar angle
-            const th = -az;                                   // azimuth sign flip
-
-            sunVector.setFromSphericalCoords(1, phi, th);
-            sky.material.uniforms.sunPosition.value.copy(sunVector);
-
-            // position the directional light far away in that direction
-            sunLight.position.copy(sunVector).multiplyScalar(100000);
-            sunLight.target.position.set(0, 0, 0);
-            sunLight.target.updateMatrixWorld();
-
-            if (elev > 0) {
-                sunLight.intensity = 4.0;          // fixed, punchy daylight
-                moonLight.visible = false;
-            } else {
-                sunLight.intensity = 0;            // sun below horizon
-                moonLight.visible = true;
-                moonLight.position.copy(sunVector).multiplyScalar(-100000);
-                moonLight.target.position.set(0, 0, 0);
-                moonLight.target.updateMatrixWorld();
-            }
-        }
-
-
-        // ── Scene & Signaling Setup ─────────────────────────────────────────────
-        const DEFAULT_SERVER = 'https://ipfs-signaling-vr.loca.lt';
-        let socket, scene, camera, renderer, controls, dolly, gridInstance, gridMesh;
-        const clock = new THREE.Clock();
-        const movement = { forward: false, backward: false, left: false, right: false, shift: false };
-        const peerBalls = {};
-        const raycaster = new THREE.Raycaster();
-        const DOWN = new THREE.Vector3(0, -1, 0);
-        const RAY_START_H = 100, EYE_HEIGHT = 1.6;
-
-
-        // Save position & look direction
-        let saveTimeout;
-        function scheduleSave() {
-            clearTimeout(saveTimeout);
-            saveTimeout = setTimeout(() => {
-                const p = dolly.position;
-                localStorage.setItem('userPosition', JSON.stringify([p.x, p.y, p.z]));
-                const dir = new THREE.Vector3();
-                camera.getWorldDirection(dir);
-                localStorage.setItem('userDirection', JSON.stringify([dir.x, dir.y, dir.z]));
-            }, 200);
-        }
-
-        initScene();
-        attemptDefaultConnect();
-        animate();
-
-        function initScene() {
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x808080);
-
-            camera = new THREE.PerspectiveCamera(
-                50, window.innerWidth / window.innerHeight, 0.1, 2000000
-            );
-            controls = new PointerLockControls(camera, document.body);
-            dolly = controls.getObject();
-
-            // ——— Mobile: prompt for orientation permission ———
-            if (isMobile) {
-                ensureOrientationPermission();
-            }
-
-            // Restore look direction
-            const dirS = localStorage.getItem('userDirection');
-            if (dirS) {
-                try {
-                    const [dx, dy, dz] = JSON.parse(dirS);
-                    const dir = new THREE.Vector3(dx, dy, dz);
-                    const yaw = Math.atan2(-dir.x, -dir.z);
-                    const pitch = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
-                    dolly.rotation.y = yaw;
-                    dolly.children[0].rotation.x = pitch;
-                } catch { }
-            }
-
-            // Restore position – catch malformed
-            const posS = localStorage.getItem('userPosition');
-            if (posS) {
-                try {
-                    const arr = JSON.parse(posS);
-                    if (Array.isArray(arr) && arr.length === 3) {
-                        const [x, y, z] = arr;
-                        dolly.position.set(x, y, z);
-                    }
-                } catch { }
-            } else {
-                dolly.position.set(0, EYE_HEIGHT, 0);
-            }
-
-            scene.add(dolly);
-            document.body.addEventListener('click', () => controls.lock());
-
-            // broadcast on orientation change as well as on movement
-            controls.addEventListener('change', () => {
-                if (socket && socket.connected) broadcastPosition();
-            });
-
-
-            initSky();
-            // ── Initialize TileManager instead of single grid ─────────────────────
-            tileManager = new TileManager(5, 50, 5);
-
-            // pull out the actual UniformHexGrid100 instance…
-            const centralEntry = tileManager.tiles.get('0,0');
-            const centralGrid = centralEntry.grid;
-
-            // now point your ray‐caster at its mesh  
-            gridMesh = centralGrid.mesh;
-
-            // and wire up GPS/elevation against the real grid instance
-            activateGpsMapping(centralGrid);
-            document.addEventListener('gps-updated', () => {
-                tileManager.tiles.forEach(({ grid }) => rebuildElevations(grid));
-            }, { once: true });
-
-
-
-            window.addEventListener('keydown', e => { setMovement(e.code, true); scheduleSave(); });
-            window.addEventListener('keyup', e => { setMovement(e.code, false); scheduleSave(); });
-            window.addEventListener('pointermove', () => controls.isLocked && scheduleSave());
-
-
-            window.addEventListener('touchstart', e => {
-                const t = e.touches[0];
-                touchStart = { x: t.clientX, y: t.clientY };
-            }, { passive: true });
-
-            window.addEventListener('touchmove', e => {
-                if (!touchStart) return;
-                const t = e.touches[0];
-                const dx = t.clientX - touchStart.x;
-                const dy = t.clientY - touchStart.y;
-                const dist = Math.hypot(dx, dy);
-
-                if (dist > touchThreshold) {
-                    slideVector.x = dx / dist;
-                    slideVector.y = dy / dist;
-                    slideMagnitude = Math.min((dist - touchThreshold) / (maxSlideDist - touchThreshold), 1);
-                } else {
-                    slideVector.x = 0;
-                    slideVector.y = 0;
-                    slideMagnitude = 0;
-                }
-
-                e.preventDefault();
-            }, { passive: false });
-
-            window.addEventListener('touchend', () => {
-                slideVector.x = 0;
-                slideVector.y = 0;
-                slideMagnitude = 0;
-                touchStart = null;
-            }, { passive: true });
-
-
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setPixelRatio(window.devicePixelRatio);
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            renderer.toneMappingExposure = 1.1;
-            document.body.appendChild(renderer.domElement);
-            window.addEventListener('resize', onWindowResize);
+      }
+
+      idxs.forEach(({ i }, order) => {
+        const ix = 3 * i;
+        const worldX = gridInstance.group.position.x + tp[ix];
+        const worldZ = gridInstance.group.position.z + tp[ix + 2];
+        const latP = origin.lat + worldZ / mLat;
+        const lonP = origin.lon + worldX / mLon;
+        const cached = cachedElev(latP, lonP);
+        const delay = cached != null ? CACHE_POINT_DELAY : order * API_POINT_DELAY_STEP;
+
+        setTimeout(() => {
+          if (cached != null) {
+            applyRaw(i, cached);
+          } else {
+            fetch(`https://epqs.nationalmap.gov/v1/json?x=${lonP}&y=${latP}&wkid=4326&units=Meters`)
+              .then(r => r.json())
+              .then(d => {
+                const raw = d.value != null ? d.value : 0;
+                addCache(latP, lonP, raw);
+                applyRaw(i, raw);
+              })
+              .catch(() => applyRaw(i, 0));
+          }
+        }, delay);
+      });
+    }
+
+    let sky, sunVector, sunLight, moonLight;
+    function initSky() {
+      // physical sky dome
+      sky = new Sky();
+      sky.scale.setScalar(450000);
+      scene.add(sky);
+
+      sunVector = new THREE.Vector3();
+
+      // ultra-hard key light: high intensity, narrow angular diameter
+      sunLight = new THREE.DirectionalLight(0xffffff, 2.0);   // brighter & harsher
+      sunLight.castShadow = true;
+      sunLight.shadow.mapSize.set(8192, 8192);                // razor-sharp shadows
+      sunLight.shadow.bias = -0.0004;
+      sunLight.shadow.normalBias = 0.001;
+      scene.add(sunLight);
+
+      // almost no ambient fill – let shadows go dark
+      const hemi = new THREE.HemisphereLight(0x404040, 0x202020, 0.08);
+      scene.add(hemi);
+
+      // subtle rim/back light to separate silhouettes (cool tint, very low)
+      const rimLight = new THREE.DirectionalLight(0x7aa7ff, 0.15);
+      rimLight.position.set(-0.4, 0.3, -0.4).normalize();
+      scene.add(rimLight);
+
+      // moonlight kept but dimmed further
+      moonLight = new THREE.DirectionalLight(0x8899bb, 0.08);
+      scene.add(moonLight);
+    }
+
+    /**
+     * Positions the sun straight from real-world azimuth/elevation but **keeps
+     * intensity fixed and bright** so the scene always receives a direct key light.
+     */
+    function updateSun(lat, lon) {
+      const now = new Date();
+      const pos = SunCalc.getPosition(now, lat, lon);
+      const elev = pos.altitude;                         // radians
+      const az = pos.azimuth;                          // radians
+
+      const phi = THREE.MathUtils.degToRad(90) - elev;   // polar angle
+      const th = -az;                                   // azimuth sign flip
+
+      sunVector.setFromSphericalCoords(1, phi, th);
+      sky.material.uniforms.sunPosition.value.copy(sunVector);
+
+      // position the directional light far away in that direction
+      sunLight.position.copy(sunVector).multiplyScalar(100000);
+      sunLight.target.position.set(0, 0, 0);
+      sunLight.target.updateMatrixWorld();
+
+      if (elev > 0) {
+        sunLight.intensity = 4.0;          // fixed, punchy daylight
+        moonLight.visible = false;
+      } else {
+        sunLight.intensity = 0;            // sun below horizon
+        moonLight.visible = true;
+        moonLight.position.copy(sunVector).multiplyScalar(-100000);
+        moonLight.target.position.set(0, 0, 0);
+        moonLight.target.updateMatrixWorld();
+      }
+    }
+
+
+    // ── Scene & Signaling Setup ─────────────────────────────────────────────
+    const DEFAULT_SERVER = 'https://ipfs-signaling-vr.loca.lt';
+    let socket, scene, camera, renderer, controls, dolly, gridInstance, gridMesh;
+    const clock = new THREE.Clock();
+    const movement = { forward: false, backward: false, left: false, right: false, shift: false };
+    const peerBalls = {};
+    const raycaster = new THREE.Raycaster();
+    const DOWN = new THREE.Vector3(0, -1, 0);
+    const RAY_START_H = 100, EYE_HEIGHT = 1.6;
+
+
+    // Save position & look direction
+    let saveTimeout;
+    function scheduleSave() {
+      clearTimeout(saveTimeout);
+      saveTimeout = setTimeout(() => {
+        const p = dolly.position;
+        localStorage.setItem('userPosition', JSON.stringify([p.x, p.y, p.z]));
+        const dir = new THREE.Vector3();
+        camera.getWorldDirection(dir);
+        localStorage.setItem('userDirection', JSON.stringify([dir.x, dir.y, dir.z]));
+      }, 200);
+    }
+
+    initScene();
+    attemptDefaultConnect();
+    animate();
+
+    function initScene() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x808080);
+
+      camera = new THREE.PerspectiveCamera(
+        50, window.innerWidth / window.innerHeight, 0.1, 2000000
+      );
+      controls = new PointerLockControls(camera, document.body);
+      dolly = controls.getObject();
+
+      // ——— Mobile: prompt for orientation permission ———
+      if (isMobile) {
+        ensureOrientationPermission();
+      }
+
+      // Restore look direction
+      const dirS = localStorage.getItem('userDirection');
+      if (dirS) {
+        try {
+          const [dx, dy, dz] = JSON.parse(dirS);
+          const dir = new THREE.Vector3(dx, dy, dz);
+          const yaw = Math.atan2(-dir.x, -dir.z);
+          const pitch = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
+          dolly.rotation.y = yaw;
+          dolly.children[0].rotation.x = pitch;
+        } catch { }
+      }
+
+      // Restore position – catch malformed
+      const posS = localStorage.getItem('userPosition');
+      if (posS) {
+        try {
+          const arr = JSON.parse(posS);
+          if (Array.isArray(arr) && arr.length === 3) {
+            const [x, y, z] = arr;
+            dolly.position.set(x, y, z);
+          }
+        } catch { }
+      } else {
+        dolly.position.set(0, EYE_HEIGHT, 0);
+      }
+
+      scene.add(dolly);
+      document.body.addEventListener('click', () => controls.lock());
+
+      // broadcast on orientation change as well as on movement
+      controls.addEventListener('change', () => {
+        if (socket && socket.connected) broadcastPosition();
+      });
+
+
+      initSky();
+      // ── Initialize TileManager instead of single grid ─────────────────────
+
+      const { x, z } = dolly.position;
+      const a = 50; // same as the tileRadius you pass below
+      // axial conversion (pointy-topped hex)
+      const qf = (2 / 3 * x) / a;
+      const rf = ((-1 / 3 * x) + (Math.sqrt(3) / 3 * z)) / a;
+      var startQ = Math.round(qf);
+      var startR = Math.round(rf);
+      console.log(`[Init] starting tile at q=${startQ}, r=${startR}`);
+
+
+      // now use those in your TileManager constructor
+      tileManager = new TileManager(5, 50, 5, startQ, startR);
+
+      // pull out the actual UniformHexGrid100 instance…
+      const centralEntry = tileManager.tiles.get(`${startQ},${startR}`);
+      const centralGrid = centralEntry.grid;
+
+      // now point your ray‐caster at its mesh  
+      gridMesh = centralGrid.mesh;
+
+      // and wire up GPS/elevation against the real grid instance
+      activateGpsMapping(centralGrid);
+      document.addEventListener('gps-updated', () => {
+        tileManager.tiles.forEach(({ grid }) => rebuildElevations(grid));
+      }, { once: true });
+
+
+
+      window.addEventListener('keydown', e => { setMovement(e.code, true); scheduleSave(); });
+      window.addEventListener('keyup', e => { setMovement(e.code, false); scheduleSave(); });
+      window.addEventListener('pointermove', () => controls.isLocked && scheduleSave());
+
+
+      window.addEventListener('touchstart', e => {
+        const t = e.touches[0];
+        touchStart = { x: t.clientX, y: t.clientY };
+      }, { passive: true });
+
+      window.addEventListener('touchmove', e => {
+        if (!touchStart) return;
+        const t = e.touches[0];
+        const dx = t.clientX - touchStart.x;
+        const dy = t.clientY - touchStart.y;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist > touchThreshold) {
+          slideVector.x = dx / dist;
+          slideVector.y = dy / dist;
+          slideMagnitude = Math.min((dist - touchThreshold) / (maxSlideDist - touchThreshold), 1);
+        } else {
+          slideVector.x = 0;
+          slideVector.y = 0;
+          slideMagnitude = 0;
         }
 
-        function setMovement(code, val) {
-            switch (code) {
-                case 'KeyW': case 'ArrowUp': movement.forward = val; break;
-                case 'KeyS': case 'ArrowDown': movement.backward = val; break;
-                case 'KeyA': case 'ArrowLeft': movement.left = val; break;
-                case 'KeyD': case 'ArrowRight': movement.right = val; break;
-                case 'ShiftLeft': case 'ShiftRight': movement.shift = val; break;
-            }
+        e.preventDefault();
+      }, { passive: false });
+
+      window.addEventListener('touchend', () => {
+        slideVector.x = 0;
+        slideVector.y = 0;
+        slideMagnitude = 0;
+        touchStart = null;
+      }, { passive: true });
+
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.1;
+      document.body.appendChild(renderer.domElement);
+      window.addEventListener('resize', onWindowResize);
+    }
+
+    function setMovement(code, val) {
+      switch (code) {
+        case 'KeyW': case 'ArrowUp': movement.forward = val; break;
+        case 'KeyS': case 'ArrowDown': movement.backward = val; break;
+        case 'KeyA': case 'ArrowLeft': movement.left = val; break;
+        case 'KeyD': case 'ArrowRight': movement.right = val; break;
+        case 'ShiftLeft': case 'ShiftRight': movement.shift = val; break;
+      }
+    }
+
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const delta = clock.getDelta();
+
+      updateLocalMovement(delta);
+      updatePeers();
+      if (origin) updateSun(origin.lat, origin.lon);
+
+      // ——— Mobile: apply device orientation to look ———
+      if (isMobile && orientationOk) {
+        const { alpha, beta, gamma } = orientation;
+        const a = THREE.MathUtils.degToRad(alpha);
+        const b = THREE.MathUtils.degToRad(beta);
+        const g = THREE.MathUtils.degToRad(gamma);
+
+        const euler = new THREE.Euler(b, a, -g, 'YXZ');
+        const quat = new THREE.Quaternion().setFromEuler(euler);
+        const corr = new THREE.Quaternion().setFromAxisAngle(
+          new THREE.Vector3(1, 0, 0),
+          -Math.PI / 2
+        );
+        quat.multiply(corr);
+        dolly.quaternion.copy(quat);
+
+        // broadcast new look direction
+        if (socket && socket.connected) {
+          broadcastPosition();
         }
+      }
 
+      renderer.render(scene, camera);
 
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
+      // after rendering, spawn any needed tile without blocking motion
+      if (pendingTileSpawn) {
+        pendingTileSpawn = false;
+        const spawn = () => tileManager.update(dolly.position);
+        if ('requestIdleCallback' in window) {
+          // optional second arg must be an object, so we'll omit it
+          window.requestIdleCallback(spawn);
+        } else {
+          setTimeout(spawn, 0);
         }
-
-        function animate() {
-            requestAnimationFrame(animate);
-            const delta = clock.getDelta();
-
-            updateLocalMovement(delta);
-            updatePeers();
-            if (origin) updateSun(origin.lat, origin.lon);
-
-            // ——— Mobile: apply device orientation to look ———
-            if (isMobile && orientationOk) {
-                const { alpha, beta, gamma } = orientation;
-                const a = THREE.MathUtils.degToRad(alpha);
-                const b = THREE.MathUtils.degToRad(beta);
-                const g = THREE.MathUtils.degToRad(gamma);
-
-                const euler = new THREE.Euler(b, a, -g, 'YXZ');
-                const quat = new THREE.Quaternion().setFromEuler(euler);
-                const corr = new THREE.Quaternion().setFromAxisAngle(
-                    new THREE.Vector3(1, 0, 0),
-                    -Math.PI / 2
-                );
-                quat.multiply(corr);
-                dolly.quaternion.copy(quat);
-
-                // broadcast new look direction
-                if (socket && socket.connected) {
-                    broadcastPosition();
-                }
-            }
-
-            renderer.render(scene, camera);
-
-            // after rendering, spawn any needed tile without blocking motion
-            if (pendingTileSpawn) {
-                pendingTileSpawn = false;
-                const spawn = () => tileManager.update(dolly.position);
-                if ('requestIdleCallback' in window) {
-                    // optional second arg must be an object, so we'll omit it
-                    window.requestIdleCallback(spawn);
-                } else {
-                    setTimeout(spawn, 0);
-                }
-            }
-        }
+      }
+    }
 
 
-        function getHeightAt(x, z) {
-            raycaster.set(new THREE.Vector3(x, RAY_START_H, z), DOWN);
+    function getHeightAt(x, z) {
+      raycaster.set(new THREE.Vector3(x, RAY_START_H, z), DOWN);
 
-            // pull out each tile's mesh, filter out anything falsy
-            const meshes = Array.from(tileManager.tiles.values())
-                .map(({ grid }) => grid && grid.mesh)
-                .filter(Boolean);
+      // pull out each tile's mesh, filter out anything falsy
+      const meshes = Array.from(tileManager.tiles.values())
+        .map(({ grid }) => grid && grid.mesh)
+        .filter(Boolean);
 
-            const inter = raycaster.intersectObjects(meshes, true);
-            return inter.length > 0
-                ? inter[0].point.y
-                : dolly.position.y;
-        }
+      const inter = raycaster.intersectObjects(meshes, true);
+      return inter.length > 0
+        ? inter[0].point.y
+        : dolly.position.y;
+    }
 
-        function snapDolly() {
-            const { x, z } = dolly.position;
-            dolly.position.y = getHeightAt(x, z) + EYE_HEIGHT;
-        }
+    function snapDolly() {
+      const { x, z } = dolly.position;
+      dolly.position.y = getHeightAt(x, z) + EYE_HEIGHT;
+    }
 
 
 
 
-        function updateLocalMovement(delta) {
-            const baseSpeed = 2.0;
+    function updateLocalMovement(delta) {
+      const baseSpeed = 2.0;
 
-            // — adjust sprintFactor exponentially
-            if (movement.shift) {
-                sprintFactor = Math.min(SPRINT_MAX,
-                    sprintFactor * Math.exp(SPRINT_ACCEL * delta)
-                );
-            } else {
-                sprintFactor = Math.max(1.0,
-                    sprintFactor * Math.exp(-SPRINT_DECAY * delta)
-                );
-            }
-            // camera axes
-            const forward = new THREE.Vector3();
-            camera.getWorldDirection(forward);
-            forward.y = 0;
-            forward.normalize();
-            // corrected right vector
-            const right = new THREE.Vector3()
-                .crossVectors(forward, new THREE.Vector3(0, 1, 0))
-                .normalize();
-            // keyboard inputs
-            let moveX = 0, moveZ = 0;
-            if (movement.forward) moveZ += 1;
-            if (movement.backward) moveZ -= 1;
-            if (movement.left) moveX -= 1;
-            if (movement.right) moveX += 1;
-            // add slide vector
-            moveX += slideVector.x * slideMagnitude;
-            moveZ += -slideVector.y * slideMagnitude;
-            const combined = new THREE.Vector3()
-                .addScaledVector(right, moveX)
-                .addScaledVector(forward, moveZ);
-            if (combined.lengthSq() > 0) {
-                // apply sprintFactor
-                const speed = baseSpeed * combined.length() * sprintFactor;
-                combined.normalize().multiplyScalar(speed * delta);
-                dolly.position.add(combined);
-                snapDolly();
-                pendingTileSpawn = true;
-                broadcastPosition();
-            }
-        }
+      // — adjust sprintFactor exponentially
+      if (movement.shift) {
+        sprintFactor = Math.min(SPRINT_MAX,
+          sprintFactor * Math.exp(SPRINT_ACCEL * delta)
+        );
+      } else {
+        sprintFactor = Math.max(1.0,
+          sprintFactor * Math.exp(-SPRINT_DECAY * delta)
+        );
+      }
+      // camera axes
+      const forward = new THREE.Vector3();
+      camera.getWorldDirection(forward);
+      forward.y = 0;
+      forward.normalize();
+      // corrected right vector
+      const right = new THREE.Vector3()
+        .crossVectors(forward, new THREE.Vector3(0, 1, 0))
+        .normalize();
+      // keyboard inputs
+      let moveX = 0, moveZ = 0;
+      if (movement.forward) moveZ += 1;
+      if (movement.backward) moveZ -= 1;
+      if (movement.left) moveX -= 1;
+      if (movement.right) moveX += 1;
+      // add slide vector
+      moveX += slideVector.x * slideMagnitude;
+      moveZ += -slideVector.y * slideMagnitude;
+      const combined = new THREE.Vector3()
+        .addScaledVector(right, moveX)
+        .addScaledVector(forward, moveZ);
+      if (combined.lengthSq() > 0) {
+        // apply sprintFactor
+        const speed = baseSpeed * combined.length() * sprintFactor;
+        combined.normalize().multiplyScalar(speed * delta);
+        dolly.position.add(combined);
+        snapDolly();
+        pendingTileSpawn = true;
+        broadcastPosition();
+      }
+    }
 
 
-        // ── Signaling ───────────────────────────────────────────────────────────
-        function attemptDefaultConnect() {
-            socket = io(DEFAULT_SERVER, { transports: ['websocket'], timeout: 5000 });
-            setupSocketEvents();
-            socket.on('connect', () => { hideModal(); broadcastPosition(); });
-            socket.on('connect_error', () => showModal());
-        }
-        function startWithUrl(url) {
-            socket = io(url, { transports: ['websocket'], timeout: 5000 });
-            setupSocketEvents();
-            socket.on('connect', () => { hideModal(); broadcastPosition(); });
-            socket.on('connect_error', () => { alert('Could not connect to ' + url); showModal(); });
-        }
-        function showModal() {
-            document.getElementById('modal').classList.add('show');
-            document.getElementById('connectBtn').onclick = () => {
-                const u = document.getElementById('serverUrl').value.trim();
-                if (!u) return alert('Enter a URL');
-                startWithUrl(u);
-            };
-        }
-        function hideModal() {
-            document.getElementById('modal').classList.remove('show');
-        }
-        function setupSocketEvents() {
-            socket.on('existing-peers', peers => peers.forEach(p => addPeer(p.id)));
-            socket.on('new-peer', p => addPeer(p.id));
-            socket.on('peer-disconnect', id => removePeer(id));
-            socket.on('peer-message', data => {
-                const pb = peerBalls[data.peerId]; if (!pb) return;
-                try {
-                    const m = JSON.parse(data.message);
-                    pb.targetPos.set(m.x, m.y + EYE_HEIGHT, m.z);
-                    pb.targetDir.set(m.dx, m.dy, m.dz);
-                } catch { }
-            });
-        }
-        function broadcastPosition() {
-            if (socket && socket.connected) {
-                const p = dolly.position, d = new THREE.Vector3();
-                camera.getWorldDirection(d);
-                socket.emit('broadcast-message', {
-                    message: JSON.stringify({
-                        x: p.x, y: p.y - EYE_HEIGHT, z: p.z,
-                        dx: d.x, dy: d.y, dz: d.z
-                    })
-                });
-            }
-        }
-        function addPeer(id) {
-            if (peerBalls[id]) return;
-            const color = Math.random() * 0xffffff;
-            const mat = new THREE.MeshStandardMaterial({ color });
-            const sph = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), mat);
-            const arr = new THREE.ArrowHelper(
-                new THREE.Vector3(0, 0, 1),
-                new THREE.Vector3(0, 0, 0),
-                0.2, color
-            );
-            const g = new THREE.Group();
-            g.add(sph, arr);
+    // ── Signaling ───────────────────────────────────────────────────────────
+    function attemptDefaultConnect() {
+      socket = io(DEFAULT_SERVER, { transports: ['websocket'], timeout: 5000 });
+      setupSocketEvents();
+      socket.on('connect', () => { hideModal(); broadcastPosition(); });
+      socket.on('connect_error', () => showModal());
+    }
+    function startWithUrl(url) {
+      socket = io(url, { transports: ['websocket'], timeout: 5000 });
+      setupSocketEvents();
+      socket.on('connect', () => { hideModal(); broadcastPosition(); });
+      socket.on('connect_error', () => { alert('Could not connect to ' + url); showModal(); });
+    }
+    function showModal() {
+      document.getElementById('modal').classList.add('show');
+      document.getElementById('connectBtn').onclick = () => {
+        const u = document.getElementById('serverUrl').value.trim();
+        if (!u) return alert('Enter a URL');
+        startWithUrl(u);
+      };
+    }
+    function hideModal() {
+      document.getElementById('modal').classList.remove('show');
+    }
+    function setupSocketEvents() {
+      socket.on('existing-peers', peers => peers.forEach(p => addPeer(p.id)));
+      socket.on('new-peer', p => addPeer(p.id));
+      socket.on('peer-disconnect', id => removePeer(id));
+      socket.on('peer-message', data => {
+        const pb = peerBalls[data.peerId]; if (!pb) return;
+        try {
+          const m = JSON.parse(data.message);
+          pb.targetPos.set(m.x, m.y + EYE_HEIGHT, m.z);
+          pb.targetDir.set(m.dx, m.dy, m.dz);
+        } catch { }
+      });
+    }
+    function broadcastPosition() {
+      if (socket && socket.connected) {
+        const p = dolly.position, d = new THREE.Vector3();
+        camera.getWorldDirection(d);
+        socket.emit('broadcast-message', {
+          message: JSON.stringify({
+            x: p.x, y: p.y - EYE_HEIGHT, z: p.z,
+            dx: d.x, dy: d.y, dz: d.z
+          })
+        });
+      }
+    }
+    function addPeer(id) {
+      if (peerBalls[id]) return;
+      const color = Math.random() * 0xffffff;
+      const mat = new THREE.MeshStandardMaterial({ color });
+      const sph = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), mat);
+      const arr = new THREE.ArrowHelper(
+        new THREE.Vector3(0, 0, 1),
+        new THREE.Vector3(0, 0, 0),
+        0.2, color
+      );
+      const g = new THREE.Group();
+      g.add(sph, arr);
 
-            peerBalls[id] = {
-                group: g,
-                arrow: arr,
-                targetPos: new THREE.Vector3(),
-                targetDir: new THREE.Vector3(),
-                currentDir: new THREE.Vector3(0, 0, 1)
-            };
-            scene.add(g);
-        }
+      peerBalls[id] = {
+        group: g,
+        arrow: arr,
+        targetPos: new THREE.Vector3(),
+        targetDir: new THREE.Vector3(),
+        currentDir: new THREE.Vector3(0, 0, 1)
+      };
+      scene.add(g);
+    }
 
-        function updatePeers() {
-            Object.values(peerBalls).forEach(pb => {
-                // smooth position
-                pb.group.position.lerp(pb.targetPos, 0.1);
-                // stick to terrain
-                pb.group.position.y =
-                    getHeightAt(pb.group.position.x, pb.group.position.z) + EYE_HEIGHT;
+    function updatePeers() {
+      Object.values(peerBalls).forEach(pb => {
+        // smooth position
+        pb.group.position.lerp(pb.targetPos, 0.1);
+        // stick to terrain
+        pb.group.position.y =
+          getHeightAt(pb.group.position.x, pb.group.position.z) + EYE_HEIGHT;
 
-                // smooth look-direction
-                const desired = pb.targetDir.clone().normalize();
-                pb.currentDir.lerp(desired, 0.1);
-                pb.arrow.setDirection(pb.currentDir);
-            });
-        }
-        function removePeer(id) {
-            const pb = peerBalls[id]; if (!pb) return;
-            scene.remove(pb.group); delete peerBalls[id];
-        }
-    </script>
+        // smooth look-direction
+        const desired = pb.targetDir.clone().normalize();
+        pb.currentDir.lerp(desired, 0.1);
+        pb.arrow.setDirection(pb.currentDir);
+      });
+    }
+    function removePeer(id) {
+      const pb = peerBalls[id]; if (!pb) return;
+      scene.remove(pb.group); delete peerBalls[id];
+    }
+  </script>
 </body>
 
 </html>
