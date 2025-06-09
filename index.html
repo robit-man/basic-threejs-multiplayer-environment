@@ -116,6 +116,8 @@
         const SPRINT_DECAY = 20.0;  // how fast we decelerate on release
         const SPRINT_MAX = 10.0;  // max speed multiplier
         let GLOBAL_ELEV_OFFSET = null;
+        let GLOBAL_MIN_ELEV = Infinity;
+        let GLOBAL_MAX_ELEV = -Infinity;
 
         document.getElementById('clearCacheBtn').onclick = () => {
             localStorage.clear();
@@ -487,27 +489,39 @@
             const mLon = 111320 * Math.cos(origin.lat * Math.PI / 180);
 
             // colour ramp: deep-blue → bright-yellow
+            // unified colour ramp across every tile, based on global extremes
             const setColour = (idx, y) => {
-                const minY = gridInstance._minY;
-                const maxY = gridInstance._maxY;
-                const span = Math.max(1e-6, maxY - minY);
-                const t = THREE.MathUtils.clamp((y - minY) / span, 0, 1);
+                // update global min/max
+                GLOBAL_MIN_ELEV = Math.min(GLOBAL_MIN_ELEV, y);
+                GLOBAL_MAX_ELEV = Math.max(GLOBAL_MAX_ELEV, y);
 
-                const r = t;                         // 0 → 1
-                const g = 0.4 + 0.6 * t;             // 0.4 → 1
-                const b = 0.8 * (1 - t);             // 0.8 → 0
+                const span = Math.max(1e-6, GLOBAL_MAX_ELEV - GLOBAL_MIN_ELEV);
+                const t = THREE.MathUtils.clamp((y - GLOBAL_MIN_ELEV) / span, 0, 1);
 
-                colArr[3 * idx + 0] = r;
-                colArr[3 * idx + 1] = g;
-                colArr[3 * idx + 2] = b;
+                // deep-blue → bright-yellow
+                colArr[3 * idx + 0] = t;                  // r
+                colArr[3 * idx + 1] = 0.4 + 0.6 * t;      // g
+                colArr[3 * idx + 2] = 0.8 * (1 - t);      // b
             };
 
-            // recalc all colours if min/max range expands
+            // recolour every tile whenever the global scale changes
             const recolourAll = () => {
-                for (let i = 0; i < vCount; i++) {
-                    setColour(i, tp[3 * i + 1]);
+                const span = Math.max(1e-6, GLOBAL_MAX_ELEV - GLOBAL_MIN_ELEV);
+                for (const { grid } of tileManager.tiles.values()) {
+                    const posArr = grid.geometry.attributes.position.array;
+                    const colArr2 = grid.geometry.attributes.color.array;
+                    const count = posArr.length / 3;
+
+                    for (let vi = 0; vi < count; vi++) {
+                        const yv = posArr[3 * vi + 1];
+                        const t = THREE.MathUtils.clamp((yv - GLOBAL_MIN_ELEV) / span, 0, 1);
+                        colArr2[3 * vi + 0] = t;
+                        colArr2[3 * vi + 1] = 0.4 + 0.6 * t;
+                        colArr2[3 * vi + 2] = 0.8 * (1 - t);
+                    }
+
+                    grid.geometry.attributes.color.needsUpdate = true;
                 }
-                colAttr.needsUpdate = true;
             };
 
             let normOff = null;            // centre elevation once fetched
