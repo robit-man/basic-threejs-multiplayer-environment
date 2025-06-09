@@ -952,7 +952,6 @@
     function getHeightAt(x, z) {
       raycaster.set(new THREE.Vector3(x, RAY_START_H, z), DOWN);
 
-      // pull out each tile's mesh, filter out anything falsy
       const meshes = Array.from(tileManager.tiles.values())
         .map(({ grid }) => grid && grid.mesh)
         .filter(Boolean);
@@ -960,15 +959,15 @@
       const inter = raycaster.intersectObjects(meshes, true);
       return inter.length > 0
         ? inter[0].point.y
-        : dolly.position.y;
+        : null;
     }
-
     function snapDolly() {
       const { x, z } = dolly.position;
-      dolly.position.y = getHeightAt(x, z) + EYE_HEIGHT;
+      const h = getHeightAt(x, z);
+      if (h !== null) {
+        dolly.position.y = h + EYE_HEIGHT;  // stays 1.6 units above the mesh surface
+      }
     }
-
-
 
 
     function updateLocalMovement(delta) {
