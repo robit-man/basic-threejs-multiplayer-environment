@@ -2,1111 +2,1887 @@
 <html lang="en">
 
 <head>
-  <meta charset="UTF-8" />
-  <title>Threejs Multiplayer</title>
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-    }
+    <meta charset="utf-8">
+    <title>XR + Desktop + Mobile Nav Demo</title>
+    <style>
+        html,
+        body {
+            margin: 0;
+            height: 100%;
+            overflow: hidden;
+            background: #111a;
+            color: #eeea;
+            font-family: monospace;
+        }
 
-    #modal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      background: rgba(0, 0, 0, 0.75);
-      display: none;
-      align-items: center;
-      justify-content: center;
-      z-index: 10;
-    }
+        #hint {
+            border-radius: 2rem;
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            font-size: .75rem;
+            background: rgba(0, 0, 0, 0.5);
+            padding: .5em 1em;
+            pointer-events: none;
+        }
 
-    #modal.show {
-      display: flex;
-    }
+        #curHash {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            border-radius: 2rem;
 
-    #modal-content {
-      background: #fff;
-      padding: 1.5rem;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-      font-family: sans-serif;
-      text-align: center;
-    }
+            font-size: .75rem;
+            background: rgba(0, 0, 0, 0.5);
+            padding: .5em 1em;
+            pointer-events: none;
+        }
 
-    #modal-content input {
-      width: 300px;
-      padding: 0.5rem;
-      margin-top: 1rem;
-      font-size: 1rem;
-    }
+        #request,
+        #geo {
+            /* <── changed line */
+            background: black;
+            cursor: pointer;
+            border: none;
+            position: fixed;
+            top: 1rem;
+            border-radius: 2rem;
+            width: 4rem;
+            height: 4rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            padding: 0.5rem;
+        }
 
-    #modal-content button {
-      margin-top: 1rem;
-      padding: 0.5rem 1rem;
-      font-size: 1rem;
-    }
-  </style>
+        /* small offset so buttons sit side-by-side (geo = left of request) */
+        #geo {
+            right: 1rem;
+        }
+
+        /* 4 rem width + 1.5 rem gap */
+        #request {
+            right: 5.5rem;
+        }
+    </style>
 </head>
 
 <body>
-  <div id="clearCacheBtn" style="position:absolute;top:10px;left:10px;
-    height:2rem;width:2rem;display:flex;
-    align-items:center;justify-content:center;
-    padding:0.5rem;border-radius:100%;background:#222;
-    color:#fffa;cursor:pointer;z-index:9999;
-    font-family:sans-serif;font-size:0.9rem;
-    user-select:none;">
-    <svg xmlns="http://www.w3.org/2000/svg" width="1rem" height="1rem" viewBox="0 0 24 24" fill="none">
-      <path
-        d="M3 3V8M3 8H8M3 8L6 5.29168C7.59227 3.86656 9.69494 3 12 3C16.9706 3 21 7.02944 21 12C21 16.9706 16.9706 21 12 21C7.71683 21 4.13247 18.008 3.22302 14"
-        stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-    </svg>
-
-  </div>
-  <div id="modal">
-    <div id="modal-content">
-      <h2>Enter signaling server URL</h2>
-      <input id="serverUrl" type="text" placeholder="https://example.com" />
-      <br>
-      <button id="connectBtn">Connect</button>
+    <div id="hint">Click to lock • Arrows/WASD/Shift/run • Space/jump • Ctrl/crouch • Touch drag/look</div>
+    <button id="request">
+        <svg xmlns="http://www.w3.org/2000/svg" width="2rem" height="2rem" viewBox="0 0 24 24" fill="none">
+            <path
+                d="M12 18H12.01M9.2 21H14.8C15.9201 21 16.4802 21 16.908 20.782C17.2843 20.5903 17.5903 20.2843 17.782 19.908C18 19.4802 18 18.9201 18 17.8V6.2C18 5.0799 18 4.51984 17.782 4.09202C17.5903 3.71569 17.2843 3.40973 16.908 3.21799C16.4802 3 15.9201 3 14.8 3H9.2C8.0799 3 7.51984 3 7.09202 3.21799C6.71569 3.40973 6.40973 3.71569 6.21799 4.09202C6 4.51984 6 5.07989 6 6.2V17.8C6 18.9201 6 19.4802 6.21799 19.908C6.40973 20.2843 6.71569 20.5903 7.09202 20.782C7.51984 21 8.07989 21 9.2 21Z"
+                stroke="#eeeeeeaa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+    </button>
+    <button id="geo">
+        <!-- simple location-pin icon -->
+        <svg xmlns="http://www.w3.org/2000/svg" width="2rem" height="2rem" viewBox="0 0 24 24" fill="none">
+            <path d="M12 2C8.686 2 6 4.686 6 8c0 5.25 6 12 6 12s6-6.75 6-12c0-3.314-2.686-6-6-6Z" stroke="#eeeeeeaa"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <circle cx="12" cy="8" r="2.5" fill="#eeeeeeaa" />
+        </svg>
+    </button>
+    <div id="curHash">
+        --
     </div>
-  </div>
+    <div id="peerList" style="
+    position: fixed;
+    bottom: 1rem;
+    left: 1rem;
+    max-height: 30%;
+    overflow-y: auto;
+    background: rgba(0,0,0,0.5);
+    padding: .5em 1em;
+    border-radius: 1em;
+    font-size: .75rem;
+">
+        <strong>Peers:</strong>
+        <ul id="peerListUL" style="margin: .5em 0 0 0; padding: 0; list-style: none;"></ul>
+    </div>
 
-  <!-- Dependencies -->
-  <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
-  <script async src="https://cdn.jsdelivr.net/npm/es-module-shims@1.3.6/dist/es-module-shims.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/suncalc@1.9.0/suncalc.js"></script>
-  <script type="importmap">
-  {
-    "imports": {
-      "three":               "https://cdn.jsdelivr.net/npm/three@0.177.0/build/three.module.min.js",
-      "Sky":                 "https://cdn.jsdelivr.net/npm/three@0.177.0/examples/jsm/objects/Sky.min.js",
-      "PointerLockControls": "https://cdn.jsdelivr.net/npm/three@0.177.0/examples/jsm/controls/PointerLockControls.min.js",
-      "socket.io":           "https://cdn.jsdelivr.net/npm/socket.io-client@4.5.4/dist/socket.io.esm.min.js"
-    }
+
+    <script type="importmap">
+{
+  "imports": {
+    "three"                      : "https://cdn.jsdelivr.net/npm/three@0.177.0/build/three.module.min.js",
+    "VRButton"                   : "https://cdn.jsdelivr.net/npm/three@0.177.0/examples/jsm/webxr/VRButton.js",
+    "XRControllerModelFactory"   : "https://cdn.jsdelivr.net/npm/three@0.177.0/examples/jsm/webxr/XRControllerModelFactory.js",
+    "PointerLockControls"        : "https://cdn.jsdelivr.net/npm/three@0.177.0/examples/jsm/controls/PointerLockControls.js",
+    "EffectComposer"             : "https://cdn.jsdelivr.net/npm/three@0.177.0/examples/jsm/postprocessing/EffectComposer.js",
+    "RenderPass"                 : "https://cdn.jsdelivr.net/npm/three@0.177.0/examples/jsm/postprocessing/RenderPass.js",
+    "ShaderPass"                 : "https://cdn.jsdelivr.net/npm/three@0.177.0/examples/jsm/postprocessing/ShaderPass.js",
+    "HorizontalTiltShiftShader"  : "https://cdn.jsdelivr.net/npm/three@0.177.0/examples/jsm/shaders/HorizontalTiltShiftShader.js",
+    "VerticalTiltShiftShader"    : "https://cdn.jsdelivr.net/npm/three@0.177.0/examples/jsm/shaders/VerticalTiltShiftShader.js",
+    "lz-string"                  : "https://cdn.jsdelivr.net/npm/lz-string@1.4.4/+esm",
+    "socket.io"                  : "https://cdn.jsdelivr.net/npm/socket.io-client@4.5.4/dist/socket.io.esm.min.js",
+    "gltfloader"                 : "https://cdn.jsdelivr.net/npm/three@0.177.0/examples/jsm/loaders/GLTFLoader.js"
   }
-  </script>
-
-  <script type="module">
-    import * as THREE from 'three';
-    import { Sky } from 'Sky';
-    import { PointerLockControls } from 'PointerLockControls';
-    import { io } from 'socket.io';
-
-    // ── Mobile Device Orientation Helpers ───────────────────────────────────
-    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-    let orientationPermissionAsked = false;
-    let orientationOk = false;
-    let orientation = { alpha: 0, beta: 0, gamma: 0 };
-    let accel = { x: 0, y: 0, z: 0 };
-    let compassVal = 0;
-    // ——— slide–vector & touch handler with variable speed ———
-    let touchStart = null;
-    const touchThreshold = 10;   // px before activation
-    const maxSlideDist = 200;  // px mapped to full speed
-    let slideVector = { x: 0, y: 0 }; // x=right+, y=down+
-    let slideMagnitude = 0;    // 0–1
-    let pendingTileSpawn = false;
-
-    // ► sprint variables (place above updateLocalMovement)
-    let sprintFactor = 1.0;
-    const SPRINT_ACCEL = 5.0;   // how fast we accelerate when holding Shift
-    const SPRINT_DECAY = 20.0;  // how fast we decelerate on release
-    const SPRINT_MAX = 10.0;  // max speed multiplier
-    let GLOBAL_ELEV_OFFSET = null;
-    let GLOBAL_MIN_ELEV = Infinity;
-    let GLOBAL_MAX_ELEV = -Infinity;
-
-    document.getElementById('clearCacheBtn').onclick = () => {
-      localStorage.clear();
-      location.reload();
-    };
+}
+</script>
 
 
-    // bundle & compress a Float32 elevation array into localStorage
-    function cacheFullTile(q, r, posAttr) {
-      const arr = posAttr.array; // Float32Array
-      // extract only the Y-values:
-      const elevs = Array.from({ length: arr.length / 3 }, (_, i) => arr[3 * i + 1]);
-      const json = JSON.stringify(elevs);
-      const comp = LZString.compressToUTF16(json);
-      localStorage.setItem(`tile:${q},${r}`, comp);
-      console.log(`[TileCache] stored tile ${q},${r} (${json.length}→${comp.length} chars)`);
-    }
+    <script type="module">
+        import * as THREE from 'three';
+        import { VRButton } from 'VRButton';
+        import { XRControllerModelFactory } from 'XRControllerModelFactory';
+        import { PointerLockControls } from 'PointerLockControls';
+        import { GLTFLoader } from 'gltfloader';
+        import LZString from 'lz-string';
+        import { io } from 'socket.io';
 
-    // load & decompress if available; returns an array of raw elevations or null
-    function loadFullTile(q, r) {
-      const comp = localStorage.getItem(`tile:${q},${r}`);
-      if (!comp) return null;
-      try {
-        const json = LZString.decompressFromUTF16(comp);
-        return JSON.parse(json);
-      } catch {
-        localStorage.removeItem(`tile:${q},${r}`); return null;
-      }
-    }
-
-
-    function showMotionPrompt() {
-      return new Promise(res => {
-        const wrap = document.createElement("div");
-        wrap.style.cssText = `
-        position:fixed;inset:0;display:flex;
-        align-items:center;justify-content:center;
-        background:rgba(0,0,0,.65);z-index:9999`;
-        wrap.innerHTML = `
-        <div style="background:#222;color:#fff;
-                    padding:1rem 1.5rem;border-radius:8px;
-                    max-width:260px;text-align:center;">
-            <p><strong>Enable motion/orientation?</strong></p>
-            <p>This lets your peer see how you tilt and move the phone.</p>
-            <button id="perm-ok"   style="margin-right:.5rem;">Allow</button>
-            <button id="perm-cancel">Deny</button>
-        </div>`;
-        document.body.appendChild(wrap);
-
-        wrap.querySelector("#perm-ok").onclick = () => { wrap.remove(); res(true); };
-        wrap.querySelector("#perm-cancel").onclick = () => { wrap.remove(); res(false); };
-      });
-    }
-
-    async function ensureOrientationPermission() {
-      if (!isMobile || orientationPermissionAsked) return;
-      orientationPermissionAsked = true;
-
-      const needIOSPrompt =
-        typeof DeviceOrientationEvent === "function" &&
-        typeof DeviceOrientationEvent.requestPermission === "function";
-
-      const ok = await showMotionPrompt();
-      if (!ok) return;
-
-      if (needIOSPrompt) {
-        try {
-          const status = await DeviceOrientationEvent.requestPermission();
-          if (status !== "granted") return;
-        } catch { return; }
-      }
-      registerMotionListeners(true);
-    }
-
-    function registerMotionListeners(replace = false) {
-      if (replace) {
-        window.removeEventListener("deviceorientation", handleOrientation, true);
-        window.removeEventListener("devicemotion", handleMotion, true);
-      }
-      window.addEventListener("deviceorientation", handleOrientation, true);
-      window.addEventListener("devicemotion", handleMotion, true);
-    }
-
-    function handleOrientation(ev) {
-      if (!orientationOk &&
-        ev.alpha === null && ev.beta === null && ev.gamma === null) {
-        ensureOrientationPermission();
-        return;
-      }
-      orientationOk = true;
-      orientation.alpha = ev.alpha ?? 0;
-      orientation.beta = ev.beta ?? 0;
-      orientation.gamma = ev.gamma ?? 0;
-    }
-
-    function handleMotion(ev) {
-      accel.x = ev.accelerationIncludingGravity?.x ?? 0;
-      accel.y = ev.accelerationIncludingGravity?.y ?? 0;
-      accel.z = ev.accelerationIncludingGravity?.z ?? 0;
-      compassVal = ev.rotationRate?.alpha ?? compassVal;
-    }
-
-    // start listening now (will no-op on desktop)
-    registerMotionListeners();
-
-    // ── Utilities ───────────────────────────────────────────────────────────
-    class Utils {
-      static smoothstep(t) { return t * t * (3 - 2 * t); }
-    }
-
-    class UniformHexGrid100 {
-      constructor(spacing = 1, size = 100, amplitude = 5) {
-        this.amplitude = amplitude;
-        this.spacing = spacing;        // ← make spacing available below
-        this.gridRadius = size / 2;       // hex “radius” in metres
-        this._generateAllRings();
-        this._buildGeometry();
-        this._initUserData();
-      }
-
-      _generateAllRings() {
-        const s = this.spacing;
-        const h = Math.sqrt(3) / 2 * s;
-        const N = Math.floor(this.gridRadius / s);
-
-        this.targetPositions = [];
-        this.triangles = [];
-        const idxMap = {};
-        let idx = 0;
-
-        // 1) place every triangular‐lattice point whose (i,j,i+j) coords lie within a cube‐radius N
-        for (let j = -N; j <= N; j++) {
-          for (let i = -N; i <= N; i++) {
-            if (Math.max(Math.abs(i), Math.abs(j), Math.abs(i + j)) > N) continue;
-            // map (i,j) → Cartesian on a triangular grid
-            const x = (i + j / 2) * s;
-            const z = j * h;
-
-            idxMap[`${i},${j}`] = idx;
-            this.targetPositions.push(x, 0, z);
-            idx++;
-          }
-        }
-
-        // 2) stitch each little quad into two triangles
-        for (let j = -N; j < N; j++) {
-          for (let i = -N; i < N; i++) {
-            const a = idxMap[`${i},${j}`],
-              b = idxMap[`${i + 1},${j}`],
-              c = idxMap[`${i},${j + 1}`],
-              d = idxMap[`${i + 1},${j + 1}`];
-            if (a != null && b != null && c != null) this.triangles.push(a, b, c);
-            if (b != null && d != null && c != null) this.triangles.push(b, d, c);
-          }
-        }
-      }
-
-      _buildGeometry() {
-        const posAttr = new THREE.Float32BufferAttribute(
-          new Float32Array(this.targetPositions), 3
-        ).setUsage(THREE.DynamicDrawUsage);
-
-        // create a parallel colour buffer – initial flat medium-blue
-        const vCount = this.targetPositions.length / 3;
-        const colors = new Float32Array(vCount * 3);
-        for (let i = 0; i < vCount; i++) {          // RGB per-vertex
-          colors[3 * i + 0] = 0.2;                // r
-          colors[3 * i + 1] = 0.4;                // g
-          colors[3 * i + 2] = 0.8;                // b
-        }
-        const colAttr = new THREE.Float32BufferAttribute(colors, 3)
-          .setUsage(THREE.DynamicDrawUsage);
-
-        this.geometry = new THREE.BufferGeometry();
-        this.geometry.setAttribute('position', posAttr);
-        this.geometry.setAttribute('color', colAttr);
-        this.geometry.setIndex(this.triangles);
-        this.geometry.computeVertexNormals();
-      }
-
-      _initUserData() {
-        // shaded surface coloured per-vertex
-        const solidMat = new THREE.MeshStandardMaterial({
-          vertexColors: true,
-          side: THREE.DoubleSide,
-          flatShading: false
-        });
-
-        // thin black wireframe overlay
-        const wireMat = new THREE.MeshBasicMaterial({
-          color: 0x000000,
-          transparent: true,
-          opacity: 0.1,
-          wireframe: true
-        });
-
-        this.mesh = new THREE.Mesh(this.geometry, solidMat);
-        const wireMesh = new THREE.Mesh(this.geometry, wireMat);
-        wireMesh.renderOrder = 1;          // draw on top
-
-        this.mesh.castShadow = this.mesh.receiveShadow = true;
-
-        this.group = new THREE.Group();
-        this.group.add(this.mesh, wireMesh);
-      }
-
-      get object() { return this.group; }
-    }
-    // ── TileManager (flat‐topped axial layout + on‐demand expansion) ──────────
-    class TileManager {
-      constructor(spacing, tileRadius, amplitude, startQ = 0, startR = 0) {
-        this.spacing = spacing;
-        this.tileRadius = tileRadius;  // hex “radius” in meters
-        this.amplitude = amplitude;
-        this.tiles = new Map();
-        this.addTile(startQ, startR);
-      }
-
-      addTile(q, r) {
-        const diameter = this.tileRadius * 2;
-        const grid = new UniformHexGrid100(this.spacing, diameter, this.amplitude);
-
-        // assign an id & name for debugging
-        grid.id = `${q},${r}`;
-        grid.group.name = `tile-${grid.id}`;
-
-        // ── ZERO OUT EVERY VERTEX Y AND LIFT TO AVERAGE NEIGHBOR HEIGHT ───────
-        const posAttr = grid.geometry.attributes.position;
-        const tp = posAttr.array;
-        const vCount = tp.length / 3;
-
-        // Compute this tile’s world X,Z
-        const a = this.tileRadius;
-        const worldX = a * (3 / 2 * q);
-        const worldZ = a * (Math.sqrt(3) / 2 * q + Math.sqrt(3) * r);
-
-        // Sample heights at the six neighbor-edge midpoints via inline raycast
-        const neighborDirs = [
-          [1, 0], [0, 1], [-1, 1],
-          [-1, 0], [0, -1], [1, -1]
-        ];
-        let sumH = 0, countH = 0;
-        for (const [dq, dr] of neighborDirs) {
-          const sampleX = worldX + a * (3 / 2 * dq);
-          const sampleZ = worldZ + a * (Math.sqrt(3) / 2 * dq + Math.sqrt(3) * dr);
-          raycaster.set(new THREE.Vector3(sampleX, RAY_START_H, sampleZ), DOWN);
-          const meshes = Array.from(this.tiles.values())
-            .map(({ grid }) => grid.mesh)
-            .filter(Boolean);
-          const inter = raycaster.intersectObjects(meshes, true);
-          if (inter.length > 0) {
-            sumH += inter[0].point.y;
-            countH++;
-          }
-        }
-        const avgEdgeH = countH > 0 ? sumH / countH : 0;
-
-        // Apply that average height to every vertex
-        for (let vi = 0; vi < vCount; vi++) {
-          tp[3 * vi + 1] = avgEdgeH;
-        }
-        posAttr.needsUpdate = true;
-        grid.geometry.computeVertexNormals();
-
-        // Keep the tile group anchored at Y = 0
-        grid.group.position.set(worldX, 0, worldZ);
+        import { EffectComposer } from 'EffectComposer';
+        import { RenderPass } from 'RenderPass';
+        import { ShaderPass } from 'ShaderPass';
+        import { HorizontalTiltShiftShader } from 'HorizontalTiltShiftShader';
+        import { VerticalTiltShiftShader } from 'VerticalTiltShiftShader';
 
 
 
-        scene.add(grid.group);
-        this.tiles.set(grid.id, { grid, q, r });
+        const CHARACTER_MODEL = '/Xbot.glb';
+        const SIGNALING_SERVER = 'https://ipfs-signaling-vr.loca.lt';
 
-        // always fetch this tile’s own elevations once we know origin
-        const populate = () => {
-          console.log(`[Tile] populating elevations for tile ${grid.id}`);
-          rebuildElevations(grid);
-        };
-        if (origin) {
-          populate();
-        } else {
-          document.addEventListener('gps-updated', populate, { once: true });
-        }
-      }
+        const c16 = LZString.compressToUTF16;
+        const d16 = LZString.decompressFromUTF16;
 
-      update(position) {
-        const a = this.tileRadius;
-        // ← corrected inverse of the point→hex conversion for pointy‐topped layout
-        const qf = (2 / 3 * position.x) / a;
-        const rf = ((-1 / 3 * position.x) + (Math.sqrt(3) / 3 * position.z)) / a;
-
-        const q0 = Math.round(qf), r0 = Math.round(rf);
-        const dq = qf - q0, dr = rf - r0, ds = -dq - dr;
-        const maxFrac = Math.max(Math.abs(dq), Math.abs(dr), Math.abs(ds));
-
-        // threshold in world‐units for expanding into a new tile
-        const unitsFromCenter = maxFrac * this.tileRadius;
-        const EXPAND_CENTER_THRESHOLD = 15;
-        console.log(
-          `[TileEdge] unitsFromCenter=${unitsFromCenter.toFixed(2)}, ` +
-          `threshold=${EXPAND_CENTER_THRESHOLD}`
-        );
-        if (unitsFromCenter < EXPAND_CENTER_THRESHOLD) return;
-
-        // pick neighbor by dot product against correct dq/dr offsets
-        // pick up to two neighbors so corners spawn both edges
         const DIRS = [[1, 0], [0, 1], [-1, 1], [-1, 0], [0, -1], [1, -1]];
-        // compute dot products against our fractional offset
-        const dots = DIRS.map(([dqOff, drOff]) => ({
-          dir: [dqOff, drOff],
-          dot: dq * dqOff + dr * drOff
-        }));
-        // sort descending so dots[0] is best, dots[1] is second-best
-        dots.sort((a, b) => b.dot - a.dot);
+        const BUCKET_SIZE = 50;                // color‐bucket height in meters
+        const TILE_CACHE_SAVE_INTERVAL = 100;  // ms between localStorage commits
 
-        // always add the best
-        const toAdd = [dots[0].dir];
-        // if the second-best is close enough (i.e. we're near a corner), add it too
-        if (dots[1].dot > 0.5 * dots[0].dot) {
-          toAdd.push(dots[1].dir);
-        }
-        /*
-                for (const [dqOff, drOff] of toAdd) {
-                  console.log(
-                    `[TileEdge] adding corner‐aware neighbor at [${dqOff},${drOff}]`
-                  );
-                  const key = `${q0 + dqOff},${r0 + drOff}`;
-                  if (!this.tiles.has(key)) {
-                    this.addTile(q0 + dqOff, r0 + drOff);
-                  }
-                }*/
-        for (const [dqOff, drOff] of toAdd) {
-          // primary spawn
-          const newQ = q0 + dqOff, newR = r0 + drOff;
-          console.log(`[TileEdge] aggressively adding tile at ${newQ},${newR}`);
-          const primaryKey = `${newQ},${newR}`;
-          if (!this.tiles.has(primaryKey)) {
-            this.addTile(newQ, newR);
-          }
+        const Geohash = (() => {
+            const BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
 
-          // then branch out: spawn any missing neighbor around the newly created tile
-          const DIRS2 = [
-            [1, 0], [0, 1], [-1, 1],
-            [-1, 0], [0, -1], [1, -1]
-          ];
-          for (const [dq2, dr2] of DIRS2) {
-            const branchKey = `${newQ + dq2},${newR + dr2}`;
-            if (!this.tiles.has(branchKey)) {
-              console.log(`[TileEdge] branching spawn at ${branchKey}`);
-              this.addTile(newQ + dq2, newR + dr2);
+            /**
+             * Encode latitude and longitude into a geohash string.
+             * @param {number} latitude  - latitude in degrees
+             * @param {number} longitude - longitude in degrees
+             * @param {number} [precision=7] - number of characters in resulting geohash
+             * @returns {string} the geohash
+             */
+            function encode(latitude, longitude, precision = 7) {
+                let isEven = true;
+                let bit = 0;
+                let ch = 0;
+                let geohash = "";
+
+                let latMin = -90.0, latMax = 90.0;
+                let lonMin = -180.0, lonMax = 180.0;
+
+                while (geohash.length < precision) {
+                    if (isEven) {
+                        // refine longitude interval
+                        const mid = (lonMin + lonMax) / 2;
+                        if (longitude >= mid) {
+                            ch |= 1 << (4 - bit);
+                            lonMin = mid;
+                        } else {
+                            lonMax = mid;
+                        }
+                    } else {
+                        // refine latitude interval
+                        const mid = (latMin + latMax) / 2;
+                        if (latitude >= mid) {
+                            ch |= 1 << (4 - bit);
+                            latMin = mid;
+                        } else {
+                            latMax = mid;
+                        }
+                    }
+
+                    isEven = !isEven;
+
+                    if (bit < 4) {
+                        bit++;
+                    } else {
+                        // 5 bits accumulated, map to base32 char
+                        geohash += BASE32[ch];
+                        bit = 0;
+                        ch = 0;
+                    }
+                }
+
+                return geohash;
             }
-          }
+
+            return { encode };
+        })();
+        // --- Utilities for hex grid & elevation caching ---
+        class Utils {
+            static smoothstep(t) {
+                return t * t * (3 - 2 * t);
+            }
+            static compress(json) {
+                return LZString.compressToUTF16(json);
+            }
+            static decompress(comp) {
+                return LZString.decompressFromUTF16(comp);
+            }
         }
 
-      }
-    }
+        // ─── PeerManager: handles socket connection, broadcasting, and remote peers ─────────────────
+        class PeerManager {
+            constructor(serverUrl, scene, dolly, camera, hexGridMgr) {
+                this.scene = scene;
+                this.dolly = dolly;
+                this.camera = camera;
+                this.hexGrid = hexGridMgr;
+                this.socket = io(serverUrl, { transports: ['websocket'] });
 
+                // **NEW** handle our peer‐list UI
+                this.peerListEl = document.getElementById('peerListUL');
+                // map of peerId → { group, arrow, targetPos, targetDir, currentDir }
+                this.peers = {};
 
-    let tileManager;
+                // socket handlers
+                this.socket.on('connect', () => this.broadcastPose());
+                this.socket.on('existing-peers', peers => peers.forEach(p => this._addPeer(p.id)));
+                this.socket.on('new-peer', peer => this._addPeer(peer.id));
+                this.socket.on('peer-disconnect', id => this._removePeer(id));
+                this.socket.on('peer-message', data => {
+                    const pb = this.peers[data.peerId];
+                    if (!pb) return;
+                    const m = JSON.parse(data.message);
+                    pb.targetPos.set(m.x, m.y + this.hexGrid.tileRadius, m.z);
+                    pb.targetDir.set(m.dx, m.dy, m.dz);
+                });
+            }
 
+            broadcastPose() {
+                if (!this.socket.connected) return;
+                const p = this.dolly.position.clone();
+                const d = new THREE.Vector3();
+                this.camera.getWorldDirection(d);
+                this.socket.emit('broadcast-message', {
+                    message: JSON.stringify({
+                        x: p.x, y: p.y - this.hexGrid.tileRadius, z: p.z,
+                        dx: d.x, dy: d.y, dz: d.z
+                    })
+                });
+            }
+            /*
+            _addPeer(id) {
+                if (this.peers[id]) return;
+                const color = Math.random() * 0xffffff;
+                const sph = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.1, 12, 8),
+                    new THREE.MeshStandardMaterial({ color })
+                );
+                const arr = new THREE.ArrowHelper(
+                    new THREE.Vector3(0, 0, 1),
+                    new THREE.Vector3(),
+                    0.2, color
+                );
+                const grp = new THREE.Group();
+                grp.add(sph, arr);
+                this.scene.add(grp);
+                this.peers[id] = {
+                    group: grp,
+                    arrow: arr,
+                    targetPos: new THREE.Vector3(),
+                    targetDir: new THREE.Vector3(),
+                    currentDir: new THREE.Vector3(0, 0, 1)
+                };
+                // **NEW** add to the DOM list
+                const li = document.createElement('li');
+                li.id = `peer-${id}`;
+                li.textContent = id;
+                li.style.padding = '0.2em 0';
+                this.peerListEl.appendChild(li);
+                this.peers[id].listItem = li;
+            }
+*/
+            _addPeer(id) {
+                if (this.peers[id]) return;
 
-    // ── GPS & Elevation Mapping ─────────────────────────────────────────────
-    const EKEY = 'elevCacheV1';
-    function loadCache() {
-      try { return JSON.parse(localStorage.getItem(EKEY) || '{}'); }
-      catch { return {}; }
-    }
-    function saveCache(m) {
-      try { localStorage.setItem(EKEY, JSON.stringify(m)); }
-      catch { }
-    }
-    const elevCache = loadCache();  // now a map from "lat,lon" → elevation
+                // 1) Instantiate the remote player
+                const remote = new RemotePlayer(id, this.scene, this.hexGrid);
+                this.peers[id] = remote;
 
-    function haversine(lat1, lon1, lat2, lon2) {
-      const R = 6371000;
-      const dLat = (lat2 - lat1) * Math.PI / 180;
-      const dLon = (lon2 - lon1) * Math.PI / 180;
-      const a = Math.sin(dLat / 2) ** 2 +
-        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-        Math.sin(dLon / 2) ** 2;
-      return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
-    function keyFor(lat, lon) {
-      // round to 6 decimals (~0.11 m) so cached keys match exactly
-      return `${lat.toFixed(6)},${lon.toFixed(6)}`;
-    }
+                // 2) Add them to the on-screen peer list
+                const li = document.createElement('li');
+                li.id = `peer-${id}`;
+                li.textContent = id;
+                li.style.padding = '0.2em 0';
+                this.peerListEl.appendChild(li);
 
-    function cachedElev(lat, lon) {
-      const key = keyFor(lat, lon);
-      const val = elevCache[key];
-      console.log(`[elevCache] lookup ${key} → ${val != null ? 'HIT' : 'MISS'}`);
-      return val != null ? val : null;
-    }
+                // 3) Keep a reference so we can remove it later
+                remote.listItem = li;
+            }
 
-    function addCache(lat, lon, e) {
-      const key = keyFor(lat, lon);
-      console.log(`[elevCache] storing ${key} → elev=${e}`);
-      elevCache[key] = e;
-      saveCache(elevCache);
-    }
+            _removePeer(id) {
+                const remote = this.peers[id];
+                if (!remote) return;
 
-    let origin = null;
-    function activateGpsMapping(gridInstance) {
-      window.addEventListener('load', () => startGps(gridInstance));
-      if (/Mobi|Android/i.test(navigator.userAgent)) {
-        setTimeout(() => startGps(gridInstance), 5000);
-      }
-    }
-    function startGps(gridInstance) {
-      if (!navigator.geolocation) return console.error('Geolocation unsupported');
-      const handler = pos => {
-        const { latitude: lat, longitude: lon } = pos.coords;
-        if (!origin) {
-          const s = localStorage.getItem('userGpsOrigin');
-          if (s) origin = JSON.parse(s);
-          else {
-            origin = { lat, lon };
-            localStorage.setItem('userGpsOrigin', JSON.stringify(origin));
-          }
+                // 1) Remove the GLTF model (not `.group`)
+                if (remote.model) {
+                    this.scene.remove(remote.model);
+                }
+
+                // 2) Remove their list entry
+                if (remote.listItem) {
+                    remote.listItem.remove();
+                }
+
+                // 3) Clean up our map
+                delete this.peers[id];
+            }
+
+            /*
+                        updatePeers() {
+                            Object.values(this.peers).forEach(pb => {
+                                // smooth position
+                                pb.group.position.lerp(pb.targetPos, 0.1);
+                                // stick to terrain
+                                const h = this.hexGrid.getHeightAt(pb.group.position.x, pb.group.position.z);
+                                pb.group.position.y = h + 3.2;
+            
+                                // smooth direction
+                                const desired = pb.targetDir.clone().normalize();
+                                pb.currentDir.lerp(desired, 0.1);
+                                pb.arrow.setDirection(pb.currentDir);
+                            });
+                        }
+                            */
+            updatePeers(delta) {
+                Object.values(this.peers).forEach(remote => {
+                    remote.update(delta);
+                });
+            }
+
         }
-        document.dispatchEvent(new CustomEvent('gps-updated', { detail: { lat, lon } }));
-      };
-      navigator.geolocation.getCurrentPosition(handler, e => console.error(e));
-      navigator.geolocation.watchPosition(handler, e => console.error(e), {
-        enableHighAccuracy: true,
-        maximumAge: 10000
-      });
-    }
+        // ── after ── RemotePlayer with upright yaw + walk/run blending ───────────
+        class RemotePlayer {
+            constructor(id, scene, hexGrid) {
+                this.id = id;
+                this.scene = scene;
+                this.hexGrid = hexGrid;
+                this.loader = new GLTFLoader();
+                this.model = null;
+                this.mixer = null;
+                this.actions = {};
+                this.targetPos = new THREE.Vector3();
+                this.targetDir = new THREE.Vector3();
+                this.currentDir = new THREE.Vector3(0, 0, 1);
+                this.currentAction = 'idle';
+                this.speedHistory = [];
+                this.maxSpeedSamples = 10;
+                this._loadModel();
+            }
 
-    function rebuildElevations(gridInstance) {
-      if (!origin) return;
+            _loadModel() {
+                this.loader.load(
+                    CHARACTER_MODEL,
+                    gltf => {
+                        console.log(`RemotePlayer ${this.id} loaded`, gltf);
 
-      const CACHE_POINT_DELAY = 0;
-      const API_POINT_DELAY_STEP = 20;
+                        this.model = gltf.scene;
+                        this.model.traverse(o => {
+                            if (o.isMesh) o.castShadow = true;
+                        });
+                        this.scene.add(this.model);
 
-      const posAttr = gridInstance.geometry.attributes.position;
-      const tp = posAttr.array;
-      const vCount = tp.length / 3;
-      const [q, r] = gridInstance.id.split(',').map(Number);
+                        this.mixer = new THREE.AnimationMixer(this.model);
+                        gltf.animations.forEach(clip => {
+                            const action = this.mixer.clipAction(clip);
+                            action.enabled = true;
+                            this.actions[clip.name] = action;
+                        });
 
-      let colAttr = gridInstance.geometry.attributes.color;
-      if (!colAttr) {
-        const colours = new Float32Array(vCount * 3);
-        colAttr = new THREE.Float32BufferAttribute(colours, 3)
-          .setUsage(THREE.DynamicDrawUsage);
-        gridInstance.geometry.setAttribute('color', colAttr);
-      }
-      const colArr = colAttr.array;
+                        // kick off idle
+                        this.actions.idle?.play();
+                    },
+                    undefined,
+                    err => console.error(`Failed loading ${this.id}:`, err)
+                );
+            }
 
-      function setColour(idx, y) {
-        GLOBAL_MIN_ELEV = Math.min(GLOBAL_MIN_ELEV, y);
-        GLOBAL_MAX_ELEV = Math.max(GLOBAL_MAX_ELEV, y);
-        const span = Math.max(1e-6, GLOBAL_MAX_ELEV - GLOBAL_MIN_ELEV);
-        const t = THREE.MathUtils.clamp((y - GLOBAL_MIN_ELEV) / span, 0, 1);
-        colArr[3 * idx + 0] = t;
-        colArr[3 * idx + 1] = 0.4 + 0.6 * t;
-        colArr[3 * idx + 2] = 0.8 * (1 - t);
-      }
+            update(delta) {
+                if (!this.model || !this.mixer) return;
 
-      function recolourAll() {
-        const span = Math.max(1e-6, GLOBAL_MAX_ELEV - GLOBAL_MIN_ELEV);
-        for (const { grid } of tileManager.tiles.values()) {
-          const pa = grid.geometry.attributes.position.array;
-          const ca = grid.geometry.attributes.color.array;
-          const n = pa.length / 3;
-          for (let vi = 0; vi < n; vi++) {
-            const yv = pa[3 * vi + 1];
-            const tt = THREE.MathUtils.clamp((yv - GLOBAL_MIN_ELEV) / span, 0, 1);
-            ca[3 * vi + 0] = tt;
-            ca[3 * vi + 1] = 0.4 + 0.6 * tt;
-            ca[3 * vi + 2] = 0.8 * (1 - tt);
-          }
-          grid.geometry.attributes.color.needsUpdate = true;
-        }
-      }
+                // 1) advance animations
+                this.mixer.update(delta);
 
-      const elevs = loadFullTile(q, r);
-      if (elevs) {
-        for (let i = 0; i < elevs.length; i++) {
-          tp[3 * i + 1] = elevs[i];
-        }
-        posAttr.needsUpdate = true;
-        gridInstance.geometry.computeVertexNormals();
-        for (let i = 0; i < elevs.length; i++) {
-          setColour(i, elevs[i]);
-        }
-        colAttr.needsUpdate = true;
-        console.log(`[TileCache] loaded tile ${q},${r}`);
-        return;
-      }
+                // 2) smooth X/Z toward targetPos
+                this.model.position.x = THREE.MathUtils.lerp(
+                    this.model.position.x, this.targetPos.x, 0.1
+                );
+                this.model.position.z = THREE.MathUtils.lerp(
+                    this.model.position.z, this.targetPos.z, 0.1
+                );
 
-      gridInstance._minY = gridInstance._minY ?? Infinity;
-      gridInstance._maxY = gridInstance._maxY ?? -Infinity;
+                // 3) snap Y to terrain + eye-height
+                const h = this.hexGrid.getHeightAt(
+                    this.model.position.x, this.model.position.z
+                );
+                const CHARACTER_EYE_HEIGHT = 1.6;
+                this.model.position.y = h + CHARACTER_EYE_HEIGHT;
 
-      const mLat = 111320;
-      const mLon = 111320 * Math.cos(origin.lat * Math.PI / 180);
+                // 4) upright yaw only, based on targetDir
+                const flatDir = this.targetDir.clone().setY(0).normalize();
+                const yaw = Math.atan2(flatDir.x, flatDir.z);
+                this.model.rotation.set(0, yaw, 0);
 
-      const idxs = Array.from({ length: vCount }, (_, i) => ({
-        i,
-        d: Math.hypot(tp[3 * i], tp[3 * i + 2])
-      })).sort((a, b) => b.d - a.d);
+                // 5) compute instantaneous speed (m/s)
+                const diff = new THREE.Vector3().subVectors(
+                    this.targetPos, this.model.position
+                );
+                const instantSpeed = diff.length() / (delta || 1);
 
-      let appliedCount = 0;
+                // 6) update moving average buffer
+                this.speedHistory.push(instantSpeed);
+                if (this.speedHistory.length > this.maxSpeedSamples) {
+                    this.speedHistory.shift();
+                }
+                const avgSpeed = this.speedHistory.reduce((sum, v) => sum + v, 0)
+                    / this.speedHistory.length;
 
-      function applyRaw(idx, raw) {
-        const ix = 3 * idx;
-        tp[ix + 1] = raw;
-        gridInstance._minY = Math.min(gridInstance._minY, raw);
-        gridInstance._maxY = Math.max(gridInstance._maxY, raw);
-        setColour(idx, raw);
-        colAttr.needsUpdate = true;
-        posAttr.needsUpdate = true;
-        gridInstance.geometry.computeVertexNormals();
-        appliedCount++;
-        if (appliedCount === idxs.length) {
-          cacheFullTile(q, r, posAttr);
-          console.log(`[TileCache] fully cached tile ${q},${r}`);
-        }
-      }
+                // — log UUID + averaged speed
+                console.log(`RemotePlayer ${this.id} avg speed: ${avgSpeed.toFixed(2)} m/s`);
 
-      idxs.forEach(({ i }, order) => {
-        const ix = 3 * i;
-        const worldX = gridInstance.group.position.x + tp[ix];
-        const worldZ = gridInstance.group.position.z + tp[ix + 2];
-        const latP = origin.lat + worldZ / mLat;
-        const lonP = origin.lon + worldX / mLon;
-        const cached = cachedElev(latP, lonP);
-        const delay = cached != null ? CACHE_POINT_DELAY : order * API_POINT_DELAY_STEP;
+                // 7) determine forward vs backward
+                const forward = new THREE.Vector3(0, 0, 1)
+                    .applyEuler(this.model.rotation);
+                const movementDir = diff.clone().normalize();
+                const dot = forward.dot(movementDir); // >0 forward, <0 backward
 
-        setTimeout(() => {
-          if (cached != null) {
-            applyRaw(i, cached);
-          } else {
-            fetch(`https://epqs.nationalmap.gov/v1/json?x=${lonP}&y=${latP}&wkid=4326&units=Meters`)
-              .then(r => r.json())
-              .then(d => {
-                const raw = d.value != null ? d.value : 0;
-                addCache(latP, lonP, raw);
-                applyRaw(i, raw);
-              })
-              .catch(() => applyRaw(i, 0));
-          }
-        }, delay);
-      });
-    }
+                // 8) pick action based on avgSpeed
+                const WALK_SPEED = 15;  // m/s
+                const RUN_SPEED = 25;  // m/s
+                let next = 'idle';
+                if (avgSpeed > RUN_SPEED) next = 'run';
+                else if (avgSpeed > WALK_SPEED) next = 'walk';
 
-    let sky, sunVector, sunLight, moonLight;
-    function initSky() {
-      // physical sky dome
-      sky = new Sky();
-      sky.scale.setScalar(450000);
-      scene.add(sky);
-
-      sunVector = new THREE.Vector3();
-
-      // ultra-hard key light: high intensity, narrow angular diameter
-      sunLight = new THREE.DirectionalLight(0xffffff, 2.0);   // brighter & harsher
-      sunLight.castShadow = true;
-      sunLight.shadow.mapSize.set(8192, 8192);                // razor-sharp shadows
-      sunLight.shadow.bias = -0.0004;
-      sunLight.shadow.normalBias = 0.001;
-      scene.add(sunLight);
-
-      // almost no ambient fill – let shadows go dark
-      const hemi = new THREE.HemisphereLight(0x404040, 0x202020, 0.08);
-      scene.add(hemi);
-
-      // subtle rim/back light to separate silhouettes (cool tint, very low)
-      const rimLight = new THREE.DirectionalLight(0x7aa7ff, 0.15);
-      rimLight.position.set(-0.4, 0.3, -0.4).normalize();
-      scene.add(rimLight);
-
-      // moonlight kept but dimmed further
-      moonLight = new THREE.DirectionalLight(0x8899bb, 0.08);
-      scene.add(moonLight);
-    }
-
-    /**
-     * Positions the sun straight from real-world azimuth/elevation but **keeps
-     * intensity fixed and bright** so the scene always receives a direct key light.
-     */
-    function updateSun(lat, lon) {
-      const now = new Date();
-      const pos = SunCalc.getPosition(now, lat, lon);
-      const elev = pos.altitude;                         // radians
-      const az = pos.azimuth;                          // radians
-
-      const phi = THREE.MathUtils.degToRad(90) - elev;   // polar angle
-      const th = -az;                                   // azimuth sign flip
-
-      sunVector.setFromSphericalCoords(1, phi, th);
-      sky.material.uniforms.sunPosition.value.copy(sunVector);
-
-      // position the directional light far away in that direction
-      sunLight.position.copy(sunVector).multiplyScalar(100000);
-      sunLight.target.position.set(0, 0, 0);
-      sunLight.target.updateMatrixWorld();
-
-      if (elev > 0) {
-        sunLight.intensity = 4.0;          // fixed, punchy daylight
-        moonLight.visible = false;
-      } else {
-        sunLight.intensity = 0;            // sun below horizon
-        moonLight.visible = true;
-        moonLight.position.copy(sunVector).multiplyScalar(-100000);
-        moonLight.target.position.set(0, 0, 0);
-        moonLight.target.updateMatrixWorld();
-      }
-    }
-
-
-    // ── Scene & Signaling Setup ─────────────────────────────────────────────
-    const DEFAULT_SERVER = 'https://ipfs-signaling-vr.loca.lt';
-    let socket, scene, camera, renderer, controls, dolly, gridInstance, gridMesh;
-    const clock = new THREE.Clock();
-    const movement = { forward: false, backward: false, left: false, right: false, shift: false };
-    const peerBalls = {};
-    const raycaster = new THREE.Raycaster();
-    const DOWN = new THREE.Vector3(0, -1, 0);
-    const RAY_START_H = 100, EYE_HEIGHT = 1.6;
-
-
-    // Save position & look direction
-    let saveTimeout;
-    function scheduleSave() {
-      clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(() => {
-        const p = dolly.position;
-        localStorage.setItem('userPosition', JSON.stringify([p.x, p.y, p.z]));
-        const dir = new THREE.Vector3();
-        camera.getWorldDirection(dir);
-        localStorage.setItem('userDirection', JSON.stringify([dir.x, dir.y, dir.z]));
-      }, 200);
-    }
-
-    initScene();
-    attemptDefaultConnect();
-    animate();
-
-    function initScene() {
-      scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x808080);
-
-      camera = new THREE.PerspectiveCamera(
-        50, window.innerWidth / window.innerHeight, 0.1, 2000000
-      );
-      controls = new PointerLockControls(camera, document.body);
-      dolly = controls.getObject();
-
-      // ——— Mobile: prompt for orientation permission ———
-      if (isMobile) {
-        ensureOrientationPermission();
-      }
-
-      // Restore look direction
-      const dirS = localStorage.getItem('userDirection');
-      if (dirS) {
-        try {
-          const [dx, dy, dz] = JSON.parse(dirS);
-          const dir = new THREE.Vector3(dx, dy, dz);
-          const yaw = Math.atan2(-dir.x, -dir.z);
-          const pitch = Math.asin(THREE.MathUtils.clamp(dir.y, -1, 1));
-          dolly.rotation.y = yaw;
-          dolly.children[0].rotation.x = pitch;
-        } catch { }
-      }
-
-      // Restore position – catch malformed
-      const posS = localStorage.getItem('userPosition');
-      if (posS) {
-        try {
-          const arr = JSON.parse(posS);
-          if (Array.isArray(arr) && arr.length === 3) {
-            const [x, y, z] = arr;
-            dolly.position.set(x, y, z);
-          }
-        } catch { }
-      } else {
-        dolly.position.set(0, EYE_HEIGHT, 0);
-      }
-
-      scene.add(dolly);
-      document.body.addEventListener('click', () => controls.lock());
-
-      // broadcast on orientation change as well as on movement
-      controls.addEventListener('change', () => {
-        if (socket && socket.connected) broadcastPosition();
-      });
-
-
-      initSky();
-      // ── Initialize TileManager instead of single grid ─────────────────────
-
-      const { x, z } = dolly.position;
-      const a = 50; // same as the tileRadius you pass below
-      // axial conversion (pointy-topped hex)
-      const qf = (2 / 3 * x) / a;
-      const rf = ((-1 / 3 * x) + (Math.sqrt(3) / 3 * z)) / a;
-      var startQ = Math.round(qf);
-      var startR = Math.round(rf);
-      console.log(`[Init] starting tile at q=${startQ}, r=${startR}`);
-
-
-      // now use those in your TileManager constructor
-      tileManager = new TileManager(5, 50, 5, startQ, startR);
-
-      // pull out the actual UniformHexGrid100 instance…
-      const centralEntry = tileManager.tiles.get(`${startQ},${startR}`);
-      const centralGrid = centralEntry.grid;
-
-      // now point your ray‐caster at its mesh  
-      gridMesh = centralGrid.mesh;
-
-      // and wire up GPS/elevation against the real grid instance
-      activateGpsMapping(centralGrid);
-      document.addEventListener('gps-updated', () => {
-        tileManager.tiles.forEach(({ grid }) => rebuildElevations(grid));
-      }, { once: true });
-
-
-
-      window.addEventListener('keydown', e => { setMovement(e.code, true); scheduleSave(); });
-      window.addEventListener('keyup', e => { setMovement(e.code, false); scheduleSave(); });
-      window.addEventListener('pointermove', () => controls.isLocked && scheduleSave());
-
-
-      window.addEventListener('touchstart', e => {
-        const t = e.touches[0];
-        touchStart = { x: t.clientX, y: t.clientY };
-      }, { passive: true });
-
-      window.addEventListener('touchmove', e => {
-        if (!touchStart) return;
-        const t = e.touches[0];
-        const dx = t.clientX - touchStart.x;
-        const dy = t.clientY - touchStart.y;
-        const dist = Math.hypot(dx, dy);
-
-        if (dist > touchThreshold) {
-          slideVector.x = dx / dist;
-          slideVector.y = dy / dist;
-          slideMagnitude = Math.min((dist - touchThreshold) / (maxSlideDist - touchThreshold), 1);
-        } else {
-          slideVector.x = 0;
-          slideVector.y = 0;
-          slideMagnitude = 0;
+                // 9) cross-fade & set timeScale for direction
+                if (next !== this.currentAction) {
+                    this.actions[this.currentAction]?.fadeOut(0.2);
+                    const act = this.actions[next];
+                    if (act) {
+                        act.reset();
+                        act.timeScale = dot >= 0 ? 1 : -1;
+                        act.fadeIn(0.2).play();
+                    }
+                    this.currentAction = next;
+                } else if (next === 'walk' || next === 'run') {
+                    this.actions[next].timeScale = dot >= 0 ? 1 : -1;
+                }
+            }
         }
 
-        e.preventDefault();
-      }, { passive: false });
+        class UniformHexGrid {
+            constructor(spacing = 1, size = 100) {
+                this.spacing = spacing;
+                this.radius = size / 2;
+                this._rings();
+                this._geom();
+                this._mesh();
+            }
 
-      window.addEventListener('touchend', () => {
-        slideVector.x = 0;
-        slideVector.y = 0;
-        slideMagnitude = 0;
-        touchStart = null;
-      }, { passive: true });
+            _rings() {
+                const s = this.spacing, h = Math.sqrt(3) / 2 * s,
+                    N = Math.floor(this.radius / s);
+                this.pos = [];
+                this.tri = [];
+                const map = {}, verts = [];
+                let idx = 0;
+                for (let j = -N; j <= N; j++) {
+                    for (let i = -N; i <= N; i++) {
+                        if (Math.max(Math.abs(i), Math.abs(j), Math.abs(i + j)) > N) continue;
+                        const x = (i + j / 2) * s, z = j * h;
+                        map[`${i},${j}`] = idx++;
+                        verts.push(x, 0, z);
+                    }
+                }
+                this.pos = verts;
+                for (let j = -N; j < N; j++) {
+                    for (let i = -N; i < N; i++) {
+                        const a = map[`${i},${j}`],
+                            b = map[`${i + 1},${j}`],
+                            c = map[`${i},${j + 1}`],
+                            d = map[`${i + 1},${j + 1}`];
+                        if (a != null && b != null && c != null) this.tri.push(a, b, c);
+                        if (b != null && d != null && c != null) this.tri.push(b, d, c);
+                    }
+                }
+            }
+
+            _geom() {
+                // Positions
+                const posAttr = new THREE.Float32BufferAttribute(
+                    new Float32Array(this.pos), 3
+                ).setUsage(THREE.DynamicDrawUsage);
+
+                const vCount = this.pos.length / 3;
+                // Color and alpha per vertex
+                const cols = new Float32Array(vCount * 3);
+                const alphas = new Float32Array(vCount);
+                for (let i = 0; i < vCount; i++) {
+                    cols[3 * i] = cols[3 * i + 1] = cols[3 * i + 2] = 0.5; // mid-gray
+                    alphas[i] = 0.2;                                        // mostly transparent
+                }
+
+                this.geometry = new THREE.BufferGeometry();
+                this.geometry.setAttribute('position', posAttr);
+                this.geometry.setAttribute('color',
+                    new THREE.Float32BufferAttribute(cols, 3)
+                        .setUsage(THREE.DynamicDrawUsage)
+                );
+                this.geometry.setAttribute('alpha',
+                    new THREE.Float32BufferAttribute(alphas, 1)
+                        .setUsage(THREE.DynamicDrawUsage)
+                );
+                this.geometry.setIndex(this.tri);
+                this.geometry.computeVertexNormals();
+                this.geometry.computeBoundingSphere();
+            }
+            _mesh() {
+                // keep your existing alpha & color attributes from _geom
+                const shaderMat = new THREE.ShaderMaterial({
+                    vertexColors: true,
+                    transparent: true,
+                    blending: THREE.NormalBlending,
+                    depthWrite: false,
+                    side: THREE.DoubleSide,
+
+                    uniforms: {
+                        colorLow: { value: new THREE.Color(0x111111) },
+                        colorHigh: { value: new THREE.Color(0xaaaaaa) },
+                        textureIntensity: { value: 0.1 }
+                    },
+
+                    vertexShader: `
+            attribute float alpha;
+            varying float vAlpha;
+            varying vec3 vColor;     // holds grayscale t
+            varying vec3 vWorldPos;
+            void main() {
+                vAlpha   = alpha;
+                vColor   = color;      // recolorTile wrote t into color.rgb
+                vec4 wp  = modelMatrix * vec4(position, 1.0);
+                vWorldPos = wp.xyz;
+                gl_Position = projectionMatrix * viewMatrix * wp;
+            }
+        `,
+                    fragmentShader: `
+            uniform vec3 colorLow;
+            uniform vec3 colorHigh;
+            uniform float textureIntensity;
+            varying float vAlpha;
+            varying vec3 vColor;
+            varying vec3 vWorldPos;
+
+            // simple pseudo‐random
+            float rand(vec2 co){
+                return fract(sin(dot(co,vec2(12.9898,78.233))) * 43758.5453);
+            }
+
+            void main(){
+                if (vAlpha < 0.02) discard;
+                // t = [0..1] from grayscale vertex color
+                float t = vColor.r;
+                // base gradient
+                vec3 base = mix(colorLow, colorHigh, smoothstep(0.0,1.0,t));
+                // add tiny static noise
+                float noise = rand(vWorldPos.xz * 0.1);
+                base += (noise - 0.5) * textureIntensity;
+                gl_FragColor = vec4(base, vAlpha);
+            }
+        `
+                });
+
+                // wireframe overlay (unchanged)
+                const wire = new THREE.MeshBasicMaterial({
+                    color: 0x000000,
+                    transparent: true,
+                    opacity: 0.3,
+                    wireframe: true
+                });
+
+                this.mesh = new THREE.Mesh(this.geometry, shaderMat);
+                this.mesh.frustumCulled = false;
+
+                const wMesh = new THREE.Mesh(this.geometry, wire);
+                wMesh.frustumCulled = false;
+                wMesh.renderOrder = 1;
+
+                this.group = new THREE.Group();
+                this.group.add(this.mesh, wMesh);
+            }
 
 
-      renderer = new THREE.WebGLRenderer({ antialias: true });
-      renderer.setPixelRatio(window.devicePixelRatio);
-      renderer.setSize(window.innerWidth, window.innerHeight);
-      renderer.toneMapping = THREE.ACESFilmicToneMapping;
-      renderer.toneMappingExposure = 1.1;
-      document.body.appendChild(renderer.domElement);
-      window.addEventListener('resize', onWindowResize);
-    }
 
-    function setMovement(code, val) {
-      switch (code) {
-        case 'KeyW': case 'ArrowUp': movement.forward = val; break;
-        case 'KeyS': case 'ArrowDown': movement.backward = val; break;
-        case 'KeyA': case 'ArrowLeft': movement.left = val; break;
-        case 'KeyD': case 'ArrowRight': movement.right = val; break;
-        case 'ShiftLeft': case 'ShiftRight': movement.shift = val; break;
-      }
-    }
-
-
-    function onWindowResize() {
-      camera.aspect = window.innerWidth / window.innerHeight;
-      camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    function animate() {
-      requestAnimationFrame(animate);
-      const delta = clock.getDelta();
-
-      updateLocalMovement(delta);
-      updatePeers();
-      if (origin) updateSun(origin.lat, origin.lon);
-
-      // ——— Mobile: apply device orientation to look ———
-      if (isMobile && orientationOk) {
-        const { alpha, beta, gamma } = orientation;
-        const a = THREE.MathUtils.degToRad(alpha);
-        const b = THREE.MathUtils.degToRad(beta);
-        const g = THREE.MathUtils.degToRad(gamma);
-
-        const euler = new THREE.Euler(b, a, -g, 'YXZ');
-        const quat = new THREE.Quaternion().setFromEuler(euler);
-        const corr = new THREE.Quaternion().setFromAxisAngle(
-          new THREE.Vector3(1, 0, 0),
-          -Math.PI / 2
-        );
-        quat.multiply(corr);
-        dolly.quaternion.copy(quat);
-
-        // broadcast new look direction
-        if (socket && socket.connected) {
-          broadcastPosition();
+            get object() {
+                return this.group;
+            }
         }
-      }
 
-      renderer.render(scene, camera);
 
-      // after rendering, spawn any needed tile without blocking motion
-      if (pendingTileSpawn) {
-        pendingTileSpawn = false;
-        const spawn = () => tileManager.update(dolly.position);
-        if ('requestIdleCallback' in window) {
-          // optional second arg must be an object, so we'll omit it
-          window.requestIdleCallback(spawn);
-        } else {
-          setTimeout(spawn, 0);
+        class TileManager {
+            constructor(scene, spacing = 5, tileRadius = 50) {
+                this.scene = scene;
+                this.spacing = spacing;
+                this.tileRadius = tileRadius;
+                this.tiles = new Map();    // id → { grid, q, r, elevArr, fetched, populating }
+                this.origin = null;         // set on first gps‐updated
+                this.elevCache = this._loadCache();
+
+                this.ray = new THREE.Raycaster();
+                this.DOWN = new THREE.Vector3(0, -1, 0);
+
+                // basic lighting
+                if (!scene.userData._tmLightsAdded) {
+                    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+                    const dl = new THREE.DirectionalLight(0xffffff, 0.6);
+                    dl.position.set(50, 100, 50);
+                    dl.castShadow = true;
+                    scene.add(dl);
+                    scene.userData._tmLightsAdded = true;
+                }
+
+                // shared material
+                if (!TileManager.sharedMat) {
+                    TileManager.sharedMat = new THREE.MeshStandardMaterial({
+                        vertexColors: true,
+                        flatShading: true,
+                        metalness: 0.2,
+                        roughness: 0.8,
+                        side: THREE.DoubleSide
+                    });
+                }
+
+                // wait for GPS fix
+                const saved = localStorage.getItem('tmOrigin');
+                if (saved) {
+                    this.origin = JSON.parse(saved);
+                    this.addTile(0, 0);
+                } else {
+                    document.addEventListener('gps-updated', e => {
+                        if (!this.origin) {
+                            this.origin = e.detail;
+                            // persist for future page loads or late events
+                            localStorage.setItem('tmOrigin', JSON.stringify(this.origin));
+                            this.addTile(0, 0);
+                        }
+                    }, { once: true });
+                }
+
+
+                if (!TileManager._tmpV) TileManager._tmpV = new THREE.Vector3();
+                this._lastHeight = 0;
+
+                //this.addTile(0, 0);
+            }
+
+            static minY = Infinity;
+            static maxY = -Infinity;
+            static _globalRecolorPending = false;
+
+            // schedule a full‐scene recolor next frame
+            _scheduleGlobalRecolor() {
+                if (TileManager._globalRecolorPending) return;
+                TileManager._globalRecolorPending = true;
+                requestAnimationFrame(() => {
+                    for (const { grid } of this.tiles.values()) {
+                        this._recolorTile(grid);
+                    }
+                    TileManager._globalRecolorPending = false;
+                });
+            }
+
+            // public: sample terrain height
+            getHeightAt(x, z) {
+                // 1) pick a start‐height well above your highest tile
+                const top = Math.max(TileManager.maxY + 10, this.tileRadius * 2 + 10);
+                TileManager._tmpV.set(x, top, z);
+
+                // 2) cast straight down
+                this.ray.set(TileManager._tmpV, this.DOWN);
+                // optional: limit far if you like
+                this.ray.far = top + this.tileRadius * 2;
+
+                // 3) gather all terrain meshes (use the groups so you don't miss anything)
+                const meshes = Array.from(this.tiles.values()).map(d => d.grid.group);
+                const hits = this.ray.intersectObjects(meshes, true);
+
+                if (hits.length) {
+                    this._lastHeight = hits[0].point.y;
+                }
+                return this._lastHeight;
+            }
+
+
+            // called each frame with player position
+            update(playerPos) {
+                if (!this.origin) return;
+                const a = this.tileRadius;
+                const qf = (2 / 3 * playerPos.x) / a;
+                const rf = ((-1 / 3 * playerPos.x) + (Math.sqrt(3) / 3 * playerPos.z)) / a;
+                const q0 = Math.round(qf), r0 = Math.round(rf);
+                const dq = qf - q0, dr = rf - r0, ds = -dq - dr;
+                const dist = Math.max(Math.abs(dq), Math.abs(dr), Math.abs(ds)) * a;
+                if (dist < 15) return;
+
+                // choose 1–2 directions to expand
+                const dots = DIRS
+                    .map(([dx, dy]) => ({ dir: [dx, dy], dot: dq * dx + dr * dy }))
+                    .sort((a, b) => b.dot - a.dot);
+
+                const toAdd = [dots[0].dir];
+                if (dots[1].dot > 0.5 * dots[0].dot) toAdd.push(dots[1].dir);
+
+                for (const [dx, dy] of toAdd) {
+                    const nq = q0 + dx, nr = r0 + dy;
+                    this._ensureTile(nq, nr);
+                    DIRS.forEach(([dx2, dy2]) => this._ensureTile(nq + dx2, nr + dy2));
+                }
+            }
+
+            // ensure tile exists, bump LRU, recolor on recall
+            _ensureTile(q, r) {
+                const id = `${q},${r}`;
+                if (this.tiles.has(id)) {
+                    // bump to most‐recent
+                    const entry = this.tiles.get(id);
+                    this.tiles.delete(id);
+                    this.tiles.set(id, entry);
+                    // immediately recolor recalled tile (and neighbors)
+                    this._scheduleGlobalRecolor();
+                } else {
+                    this.addTile(q, r);
+                }
+                // prune oldest if over 100
+                while (this.tiles.size > 800) {
+                    const oldest = this.tiles.keys().next().value;
+                    this._disposeTile(oldest);
+                }
+            }
+
+            async addTile(q, r) {
+                const id = `${q},${r}`;
+                const grid = new UniformHexGrid(this.spacing, this.tileRadius * 2);
+                grid.id = id;
+                grid.group.name = `tile-${id}`;
+
+                // 1) position & basic setup
+                const a = this.tileRadius;
+                grid.group.position.set(
+                    1.5 * a * q,
+                    0,
+                    a * (Math.sqrt(3) / 2 * q + Math.sqrt(3) * r)
+                );
+                const geom = grid.geometry;
+                if (!geom.attributes.color) {
+                    const arr = new Float32Array(geom.attributes.position.count * 3);
+                    geom.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+                }
+                grid.mesh.material = TileManager.sharedMat;
+
+                // 2) seed height from neighbor averages
+                let sum = 0, cnt = 0;
+                for (const [dx, dy] of DIRS) {
+                    const nb = this.tiles.get(`${q + dx},${r + dy}`);
+                    if (nb && Number.isFinite(nb.grid.avgHeight)) {
+                        sum += nb.grid.avgHeight;
+                        cnt++;
+                    }
+                }
+                const seedH = cnt ? sum / cnt : 0;
+                const pos = geom.attributes.position;
+                for (let i = 0; i < pos.count; i++) pos.setY(i, seedH);
+                pos.needsUpdate = true;
+
+                // 3) prepare tile state & compute neighbor-lists once
+                const elevArr = Array(pos.count).fill(null);
+                const fetched = new Set();
+                // build triangle adjacency map
+                const idxArr = geom.index.array;
+                const neighbors = Array.from({ length: pos.count }, () => []);
+                for (let t = 0; t < idxArr.length; t += 3) {
+                    const [aI, bI, cI] = [idxArr[t], idxArr[t + 1], idxArr[t + 2]];
+                    neighbors[aI].push(bI, cI);
+                    neighbors[bI].push(aI, cI);
+                    neighbors[cI].push(aI, bI);
+                }
+                // stash for use in _populate
+                this.tiles.set(id, { grid, q, r, elevArr, fetched, populating: false, neighbors });
+
+                // 4) inject into scene immediately (edges will auto-mate)
+                this.scene.add(grid.group);
+
+                // 5) kick off async filling
+                setTimeout(() => this._populate(id), 0);
+            }
+
+            /** Persist current elevArr + fetched set to localStorage */
+            _cacheTileProgress(id) {
+                const data = this.tiles.get(id);
+                if (!data) return;
+                const { elevArr, fetched } = data;
+                localStorage.setItem(
+                    `tile:${id}`,
+                    JSON.stringify({
+                        elevArr,
+                        fetched: Array.from(fetched)
+                    })
+                );
+            }
+
+            _populate = function (id) {
+                const data = this.tiles.get(id);
+                if (!data || !this.origin || data.populating) return;
+                data.populating = true;
+
+                const { grid, elevArr, fetched, q, r, neighbors } = data;
+                const pos = grid.geometry.attributes.position;
+                const n = pos.count;
+
+                const STEP = 5;
+                const SMOOTH_PASSES = 5;
+                const MAX_CON = 50;
+                const mLat = 111320;
+                const mLon = 111320 * Math.cos(this.origin.lat * Math.PI / 180);
+
+                // 1) interior smoothing
+                const smoothInterior = () => {
+                    const pts = Array.from(fetched).map(i => ({
+                        x: grid.group.position.x + pos.getX(i),
+                        z: grid.group.position.z + pos.getZ(i),
+                        y: pos.getY(i)
+                    }));
+                    for (let pass = 0; pass < SMOOTH_PASSES; pass++) {
+                        const snap = new Float32Array(n);
+                        for (let k = 0; k < n; k++) snap[k] = pos.getY(k);
+                        for (let k = 0; k < n; k++) {
+                            if (fetched.has(k)) continue;
+                            let sum = 0, cnt = 0;
+                            for (const nb of neighbors[k]) {
+                                if (fetched.has(nb)) {
+                                    sum += snap[nb];
+                                    cnt++;
+                                }
+                            }
+                            let newY;
+                            if (cnt > 0) {
+                                newY = sum / cnt;
+                            } else if (pts.length) {
+                                let wsum = 0, wden = 0;
+                                const xk = grid.group.position.x + pos.getX(k),
+                                    zk = grid.group.position.z + pos.getZ(k);
+                                for (const pt of pts) {
+                                    const dx = pt.x - xk, dz = pt.z - zk,
+                                        d2 = dx * dx + dz * dz + 1e-6,
+                                        w = 1 / d2;
+                                    wsum += w * pt.y;
+                                    wden += w;
+                                }
+                                newY = wsum / wden;
+                            } else {
+                                continue;
+                            }
+                            pos.setY(k, snap[k] * 0.7 + newY * 0.3);
+                        }
+                    }
+                    pos.needsUpdate = true;
+                };
+
+                // 2) try reloading partial cache first
+                const raw = localStorage.getItem(`tile:${id}`);
+                if (raw) {
+                    try {
+                        const obj = JSON.parse(raw);
+                        obj.fetched.forEach(i => {
+                            elevArr[i] = obj.elevArr[i];
+                            pos.setY(i, elevArr[i]);
+                            fetched.add(i);
+                        });
+                        pos.needsUpdate = true;
+                        smoothInterior();
+                        // stitch after preload
+                        this._stitchEdges(id);
+                        DIRS.forEach(([dx, dy]) => {
+                            const nbr = `${q + dx},${r + dy}`;
+                            if (this.tiles.has(nbr)) this._stitchEdges(nbr);
+                        });
+                        this._scheduleGlobalRecolor();
+                    } catch {
+                        localStorage.removeItem(`tile:${id}`);
+                    }
+                }
+
+                // 3) build list of missing verts
+                const missing = [];
+                for (let i = 0; i < n; i++) {
+                    if (!fetched.has(i)) missing.push(i);
+                }
+                if (!missing.length) {
+                    data.populating = false;
+                    return this._finalizeTile(id);
+                }
+
+                // 4) edge‐biased sort + bucket into STEP groups
+                missing.sort((a, b) => {
+                    const dA = pos.getX(a) ** 2 + pos.getZ(a) ** 2;
+                    const dB = pos.getX(b) ** 2 + pos.getZ(b) ** 2;
+                    return dB - dA;
+                });
+                const groups = Array.from({ length: STEP }, () => []);
+                missing.forEach((i, idx) => groups[idx % STEP].push(i));
+
+                const fetchIndex = i => new Promise(resolve => {
+                    const wx = grid.group.position.x + pos.getX(i),
+                        wz = grid.group.position.z + pos.getZ(i),
+                        lat = this.origin.lat + wz / mLat,
+                        lon = this.origin.lon + wx / mLon,
+                        cache = this._elevCache(lat, lon);
+
+                    const apply = v => {
+                        pos.setY(i, v);
+                        elevArr[i] = v;
+                        fetched.add(i);
+                        TileManager.minY = Math.min(TileManager.minY, v);
+                        TileManager.maxY = Math.max(TileManager.maxY, v);
+
+                        this._cacheTileProgress(id);
+                        smoothInterior();
+                        this._scheduleGlobalRecolor();
+                        resolve();
+                    };
+
+                    if (cache != null) return apply(cache);
+                    fetch(`https://epqs.nationalmap.gov/v1/json?x=${lon}&y=${lat}&wkid=4326&units=Meters`)
+                        .then(r => r.json())
+                        .then(d => apply(d.value || 0))
+                        .catch(() => apply(0));
+                });
+
+                (async () => {
+                    for (let pass = 0; pass < STEP; pass++) {
+                        const batch = groups[pass];
+                        for (let i = 0; i < batch.length; i += MAX_CON) {
+                            await Promise.all(batch.slice(i, i + MAX_CON).map(fetchIndex));
+                        }
+                    }
+                    data.populating = false;
+                    this._finalizeTile(id);
+
+                })();
+            };
+
+            _finalizeTile(id) {
+                const data = this.tiles.get(id);
+                if (!data) return;
+                const { grid, elevArr, fetched, q, r } = data;
+
+                // bake normals & static draw
+                grid.geometry.computeVertexNormals();
+                grid.geometry.attributes.position.setUsage(THREE.StaticDrawUsage);
+
+                // compute average height
+                grid.avgHeight = elevArr.reduce((s, v) => s + v, 0) / fetched.size;
+
+                // **one final stitch pass on both sides of every neighbor**
+                this._stitchEdges(id);
+                DIRS.forEach(([dx, dy]) => {
+                    const nbr = `${q + dx},${r + dy}`;
+                    if (this.tiles.has(nbr)) this._stitchEdges(nbr);
+                });
+
+                // persist the completed tile
+                localStorage.setItem(
+                    `tile:${id}`,
+                    JSON.stringify({ elevArr, fetched: Array.from(fetched) })
+                );
+            }
+
+
+            _isParentTile(q, r, dq, dr) {
+                const q2 = q + dq, r2 = r + dr;
+                if (q !== q2) return q < q2;
+                return r < r2;
+            };
+            _getSharedEdgePairs(idA, idB) {
+                const dataA = this.tiles.get(idA), dataB = this.tiles.get(idB);
+                const { grid: gA } = dataA, { grid: gB } = dataB;
+                const posA = gA.geometry.attributes.position,
+                    posB = gB.geometry.attributes.position;
+                const mapA = new Map();
+                for (let i = 0; i < posA.count; i++) {
+                    const x = (gA.group.position.x + posA.getX(i)).toFixed(6),
+                        z = (gA.group.position.z + posA.getZ(i)).toFixed(6);
+                    mapA.set(`${x},${z}`, i);
+                }
+                const pairs = [];
+                for (let j = 0; j < posB.count; j++) {
+                    const x = (gB.group.position.x + posB.getX(j)).toFixed(6),
+                        z = (gB.group.position.z + posB.getZ(j)).toFixed(6),
+                        key = `${x},${z}`;
+                    const i = mapA.get(key);
+                    if (i !== undefined) pairs.push([i, j]);
+                }
+                return pairs;
+            };
+            _stitchEdges(id) {
+                const dataA = this.tiles.get(id);
+                if (!dataA) return;
+
+                const { grid: gA, fetched: fetchedA, q, r } = dataA;
+                const posA = gA.geometry.attributes.position;
+
+                for (const [dq, dr] of DIRS) {
+                    const nbrId = `${q + dq},${r + dr}`;
+                    const dataB = this.tiles.get(nbrId);
+                    if (!dataB) continue;
+
+                    const { grid: gB, fetched: fetchedB } = dataB;
+                    const posB = gB.geometry.attributes.position;
+
+                    // find all matching world‐space vertices
+                    const pairs = this._getSharedEdgePairs(id, nbrId);
+                    for (const [i, j] of pairs) {
+                        const hasA = fetchedA.has(i);
+                        const hasB = fetchedB.has(j);
+
+                        // if A has it but B doesn't, push A→B
+                        if (hasA && !hasB) {
+                            posB.setY(j, posA.getY(i));
+                        }
+                        // if B has it but A doesn't, pull B→A
+                        else if (!hasA && hasB) {
+                            posA.setY(i, posB.getY(j));
+                        }
+                        // if both or neither, leave as is
+                    }
+
+                    posB.needsUpdate = true;
+                    gB.geometry.computeVertexNormals();
+                }
+
+                posA.needsUpdate = true;
+                gA.geometry.computeVertexNormals();
+            };
+
+
+            // —––– 3) Replace your old _recolorTile(grid) with this —––—
+            _recolorTile(grid) {
+                const pos = grid.geometry.attributes.position;
+                const col = grid.geometry.attributes.color;
+                const alpha = grid.geometry.attributes.alpha;
+                const n = pos.count;
+                const minY = TileManager.minY, maxY = TileManager.maxY;
+                const span = Math.max(1e-6, maxY - minY);
+
+                // look up which verts have been fetched
+                const fetched = this.tiles.get(grid.id).fetched;
+
+                for (let i = 0; i < n; i++) {
+                    const y = pos.getY(i);
+                    const t = THREE.MathUtils.clamp((y - minY) / span, 0, 1);
+                    // grayscale from black to white
+                    col.setXYZ(i, t, t, t);
+                    // alpha=1 for fetched, lower for averaged
+                    alpha.setX(i, fetched.has(i) ? 1.0 : 0.2 + 0.8 * t);
+                }
+
+                col.needsUpdate = true;
+                alpha.needsUpdate = true;
+            }
+
+
+            _disposeTile(id) {
+                const { grid } = this.tiles.get(id);
+                this.scene.remove(grid.group);
+                grid.geometry.dispose();
+                grid.mesh?.material.dispose();
+                this.tiles.delete(id);
+            }
+
+            _loadCache() {
+                try { return JSON.parse(localStorage.getItem('elevCacheV1')) || {}; }
+                catch { return {}; }
+            }
+
+            _elevCache(lat, lon) {
+                const k = `${lat.toFixed(6)},${lon.toFixed(6)}`;
+                return this.elevCache[k] ?? null;
+            }
+
+            _storeCache(lat, lon, v) {
+                const k = `${lat.toFixed(6)},${lon.toFixed(6)}`;
+                this.elevCache[k] = v;
+                localStorage.setItem('elevCacheV1', JSON.stringify(this.elevCache));
+            }
+            getCurrentHash(playerPos, precision = 7) {
+                if (!this.origin) return '';
+                const a = this.tileRadius;
+                // convert world x,z → fractional axial coords:
+                const qf = (2 / 3 * playerPos.x) / a;
+                const rf = ((-1 / 3 * playerPos.x) + (Math.sqrt(3) / 3 * playerPos.z)) / a;
+                // round to nearest hex indices:
+                const q0 = Math.round(qf), r0 = Math.round(rf);
+
+                // compute that hex's center in world coords:
+                const cx = 1.5 * a * q0;
+                const cz = a * (Math.sqrt(3) / 2 * q0 + Math.sqrt(3) * r0);
+
+                // convert back to lat/lon
+                const mLat = 111320;
+                const mLon = 111320 * Math.cos(this.origin.lat * Math.PI / 180);
+                const lat = this.origin.lat + cz / mLat;
+                const lon = this.origin.lon + cx / mLon;
+
+                return Geohash.encode(lat, lon, precision);
+            }
+
         }
-      }
-    }
+
+        // --- Rest of app classes (Platform, SensorManager, SceneManager, etc.) ---
+        class Platform {
+            constructor() {
+                this.isMobile = /Mobi|Android/i.test(navigator.userAgent);
+            }
+        }
+        class GeoRequester {
+            constructor(btn) {
+                this.btn = btn;
+                if (!('geolocation' in navigator)) {
+                    btn.style.display = 'none';
+                    console.warn('[GeoRequester] Geolocation API unavailable');
+                    return;
+                }
+                btn.addEventListener('click', () => this._request(), { once: true });
+            }
+
+            _request() {
+                const success = pos => {
+                    const { latitude: lat, longitude: lon } = pos.coords;
+                    document.dispatchEvent(new CustomEvent('gps-updated', { detail: { lat, lon } }));
+                    navigator.geolocation.watchPosition(
+                        p => {
+                            const { latitude, longitude } = p.coords;
+                            document.dispatchEvent(new CustomEvent('gps-updated', { detail: { lat: latitude, lon: longitude } }));
+                        },
+                        err => console.warn('[GeoRequester] watchPosition error', err),
+                        { enableHighAccuracy: true, maximumAge: 5000, distanceFilter: 1 }
+                    );
+                    this.btn.disabled = true;
+                };
+                const fail = err => {
+                    console.warn('[GeoRequester] getCurrentPosition failed', err);
+                    /* allow retry */
+                    this.btn.disabled = false;
+                    this.btn.addEventListener('click', () => this._request(), { once: true });
+                };
+                this.btn.disabled = true;            // immediate visual feedback
+                navigator.geolocation.getCurrentPosition(success, fail, { enableHighAccuracy: true });
+            }
+        }
+        // REPLACE WITH ─ UnifiedSensorManager (VR-ready geo prompt + live orientation) ─
+        class SensorManager {
+            constructor(requestBtn, hintEl, platform) {
+                this.requestBtn = requestBtn;
+                this.hintEl = hintEl;
+                this.platform = platform;
+
+                /* show button only if any permission still needs a user gesture */
+                this.needsGesture =
+                    typeof DeviceOrientationEvent?.requestPermission === 'function' ||
+                    typeof DeviceMotionEvent?.requestPermission === 'function';
+
+                if (!this.needsGesture) {
+                    /* desktop or already-granted → start immediately */
+                    this.requestBtn.style.display = 'none';
+                    this._enableAllSensors();
+                } else {
+                    /* mobile / VR browsers: wait for single tap */
+                    this.requestBtn.addEventListener('click', () => this._enableAllSensors(), { once: true });
+                }
+
+                this.hintEl.textContent = 'Awaiting Sensor Permission • ' + this.hintEl.textContent;
+            }
+
+            /* ------------------------------------------------------------------ */
+            async _enableAllSensors() {
+                /* 1  Orientation / motion */
+                try {
+                    if (typeof DeviceOrientationEvent?.requestPermission === 'function') {
+                        const st = await DeviceOrientationEvent.requestPermission();
+                        if (st !== 'granted') throw 'orientation denied';
+                    }
+                    if (typeof DeviceMotionEvent?.requestPermission === 'function') {
+                        const st = await DeviceMotionEvent.requestPermission();
+                        if (st !== 'granted') throw 'motion denied';
+                    }
+                    window.addEventListener('deviceorientation', e => this._broadcastOrient(e), true);
+                    window.addEventListener('devicemotion', () => { }, true); // (future use)
+                } catch { console.warn('[SensorMgr] orientation/motion permission denied'); }
+
+                /* 2  Geolocation – works on desktop, mobile, and VR browsers           */
+                if (!('geolocation' in navigator)) {
+                    console.warn('[SensorMgr] Geolocation API unavailable');
+                } else {
+                    /* query permission state so we know whether a prompt will appear      */
+                    const perm = await (navigator.permissions?.query?.({ name: 'geolocation' }) ?? Promise.resolve({ state: 'prompt' }));
+                    /* request once so the browser can prompt (VR headsets often need it) */
+                    if (perm.state !== 'granted') {
+                        try { await this._oneShotGeo(); } catch { /* prompt dismissed */ }
+                    }
+                    /* keep position flowing thereafter                                    */
+                    navigator.geolocation.watchPosition(
+                        p => this._broadcastGPS(p),
+                        err => console.warn('[SensorMgr] watchPosition error', err),
+                        { enableHighAccuracy: true, maximumAge: 5000, distanceFilter: 1 }
+                    );
+                }
+
+                /* UI feedback */
+                this.requestBtn.disabled = true;
+                this.hintEl.textContent = 'Sensors Enabled • ' + this.hintEl.textContent;
+            }
+
+            /* helper – single getCurrentPosition to trigger browser prompt         */
+            _oneShotGeo() {
+                return new Promise((res, rej) => {
+                    navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true });
+                }).then(p => this._broadcastGPS(p));
+            }
+
+            _broadcastGPS(pos) {
+                const { latitude: lat, longitude: lon } = pos.coords;
+                document.dispatchEvent(new CustomEvent('gps-updated', { detail: { lat, lon } }));
+            }
+
+            _broadcastOrient(ev) {
+                if (ev.alpha == null && ev.beta == null && ev.gamma == null) return;
+                document.dispatchEvent(new CustomEvent('orientation-updated', {
+                    detail: { alpha: ev.alpha ?? 0, beta: ev.beta ?? 0, gamma: ev.gamma ?? 0 }
+                }));
+            }
+        }
+
+        class SceneManager {
+            constructor(platform) {
+                // Renderer
+                this.renderer = new THREE.WebGLRenderer({ antialias: true });
+                this.renderer.setPixelRatio(window.devicePixelRatio);
+                this.renderer.setSize(window.innerWidth, window.innerHeight);
+                this.renderer.xr.enabled = true;
+                this.renderer.outputEncoding = THREE.sRGBEncoding;
+                this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+                this.renderer.toneMappingExposure = 1.0;
+                document.body.appendChild(this.renderer.domElement);
+                document.body.appendChild(VRButton.createButton(this.renderer));
+                this.renderer.xr.addEventListener('sessionstart', () => {
+                    document.getElementById('request').style.display = 'none';
+                });
+
+                // Scene + Fog
+                this.scene = new THREE.Scene();
+                this.scene.background = new THREE.Color(0x202020);
+                this.scene.fog = new THREE.FogExp2(0x202020, 0.002);
+
+                // Camera + Dolly
+                this.camera = new THREE.PerspectiveCamera(
+                    75, window.innerWidth / window.innerHeight, 0.05, 1000
+                );
+                this.camera.position.set(0, 1.6, 0);
+                this.dolly = new THREE.Group();
+                this.dolly.add(this.camera);
+                this.scene.add(this.dolly);
+
+                // Realistic Lighting
+                // Hemisphere for subtle sky/ground bounce
+                const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
+                this.scene.add(hemi);
+
+                // Directional "sun" with shadows
+                const sun = new THREE.DirectionalLight(0xffffff, 4.0);
+                sun.position.set(100, 500, 100);
+                sun.castShadow = true;
+                sun.shadow.mapSize.set(2048, 2048);
+                sun.shadow.camera.near = 0.5;
+                sun.shadow.camera.far = 500;
+                sun.shadow.camera.left = -200;
+                sun.shadow.camera.right = 200;
+                sun.shadow.camera.top = 200;
+                sun.shadow.camera.bottom = -200;
+                this.scene.add(sun);
+
+                // Ground plane to catch shadows (optional)
+                const groundMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
+                const ground = new THREE.Mesh(
+                    new THREE.PlaneGeometry(1000, 1000),
+                    groundMat
+                );
+                ground.rotation.x = -Math.PI / 2;
+                ground.receiveShadow = true;
+                this.scene.add(ground);
+
+                // Post-processing setup
+                this.composer = new EffectComposer(this.renderer);
+                this.composer.addPass(new RenderPass(this.scene, this.camera));
+
+                // Horizontal tilt-shift
+                this.hTilt = new ShaderPass(HorizontalTiltShiftShader);
+                this.hTilt.uniforms.h.value = 2 / window.innerHeight;
+                this.composer.addPass(this.hTilt);
+
+                // Vertical tilt-shift
+                this.vTilt = new ShaderPass(VerticalTiltShiftShader);
+                this.vTilt.uniforms.v.value = 1 / window.innerWidth;
+                this.composer.addPass(this.vTilt);
+
+                // Handle resize
+                window.addEventListener('resize', () => {
+                    const w = window.innerWidth, h = window.innerHeight;
+                    this.renderer.setSize(w, h);
+                    this.camera.aspect = w / h;
+                    this.camera.updateProjectionMatrix();
+                    this.composer.setSize(w, h);
+                    this.hTilt.uniforms.h.value = 1 / h;
+                    this.vTilt.uniforms.v.value = 1 / w;
+                });
+            }
+
+            // Expose a single render call
+            render() {
+                this.composer.render();
+            }
+        }
 
 
-    function getHeightAt(x, z) {
-      raycaster.set(new THREE.Vector3(x, RAY_START_H, z), DOWN);
+        class XRControllerManager {
+            constructor(renderer, dolly) {
+                const factory = new XRControllerModelFactory();
+                renderer.xr.addEventListener('sessionstart', () => {
+                    const c1 = renderer.xr.getController(0), c2 = renderer.xr.getController(1);
+                    dolly.add(c1, c2);
+                    const g1 = renderer.xr.getControllerGrip(0), g2 = renderer.xr.getControllerGrip(1);
+                    g1.add(factory.createControllerModel(g1));
+                    g2.add(factory.createControllerModel(g2));
+                    dolly.add(g1, g2);
+                });
+            }
+        }
 
-      const meshes = Array.from(tileManager.tiles.values())
-        .map(({ grid }) => grid && grid.mesh)
-        .filter(Boolean);
+        class InputManager {
+            constructor(platform, renderer, controls, movement, slide, sensor) {
+                this.platform = platform; this.renderer = renderer;
+                this.controls = controls; this.movement = movement; this.slide = slide;
+                document.body.addEventListener('click', () => {
+                    if (!this.renderer.xr.isPresenting && !this.platform.isMobile) controls.lock();
+                });
+                controls.addEventListener('lock', () => document.getElementById('hint').textContent = 'Locked • Arrows/WASD');
+                controls.addEventListener('unlock', () => document.getElementById('hint').textContent = 'Click to lock');
+                window.addEventListener('keydown', e => this._onKey(e, true));
+                window.addEventListener('keyup', e => this._onKey(e, false));
+                window.addEventListener('touchstart', e => { this.touchStart = e.touches[0]; });
+                window.addEventListener('touchmove', e => this._onTouch(e), { passive: false });
+                window.addEventListener('touchend', () => {
+                    this.touchStart = null;
+                    /* keep the same object instance so MovementController sees the change */
+                    this.slide.x = 0;
+                    this.slide.y = 0;
+                    this.slide.mag = 0;
+                });
+            }
+            _onKey(e, down) {
+                switch (e.code) {
+                    case 'ArrowUp': case 'KeyW': this.movement.forward = down; break;
+                    case 'ArrowDown': case 'KeyS': this.movement.backward = down; break;
+                    case 'ArrowLeft': case 'KeyA': this.movement.left = down; break;
+                    case 'ArrowRight': case 'KeyD': this.movement.right = down; break;
+                    case 'ShiftLeft': case 'ShiftRight': this.movement.shift = down; break;
+                    case 'ControlLeft': case 'ControlRight': this.movement.crouch = down; break;
+                    case 'Space': if (down && this.movement.jumpState === 'idle') {
+                        this.movement.jumpState = 'up'; this.movement.jumpTarget = this.movement.JUMP_Y;
+                    } break;
+                }
+            }
+            _onTouch(e) {
+                if (!this.touchStart) return;
+                const t = e.touches[0];
+                let dx = t.clientX - this.touchStart.clientX, dy = t.clientY - this.touchStart.clientY;
+                const mx = 200;
+                dx = Math.max(-mx, Math.min(mx, dx));
+                dy = Math.max(-mx, Math.min(mx, dy));
+                this.slide.x = dx / mx; this.slide.y = dy / mx;
+                this.slide.mag = Math.min(1, Math.hypot(this.slide.x, this.slide.y));
+                e.preventDefault();
+            }
+        }
 
-      const inter = raycaster.intersectObjects(meshes, true);
-      return inter.length > 0
-        ? inter[0].point.y
-        : null;
-    }
-    function snapDolly() {
-      const { x, z } = dolly.position;
-      const h = getHeightAt(x, z);
-      if (h !== null) {
-        dolly.position.y = h + EYE_HEIGHT;  // stays 1.6 units above the mesh surface
-      }
-    }
+        class MovementController {
+            constructor(sceneMgr, inputMgr, consts, platform) {
+                this.dolly = sceneMgr.dolly;
+                this.camera = sceneMgr.camera;
+                this.renderer = sceneMgr.renderer;
+                this.input = inputMgr.movement ? inputMgr.movement : inputMgr;
+                this.slide = inputMgr.slide;
+                this.consts = consts;
+                this.platform = platform;
+
+                /* ← mobile orientation payload comes from SensorManager */
+                this.orientation = { alpha: 0, beta: 0, gamma: 0, ready: false };
+                document.addEventListener('orientation-updated', e => {
+                    Object.assign(this.orientation, e.detail, { ready: true });
+                });
+            }
+            update(dt) {
+                /* ------------------------- aliases / consts ------------------------- */
+                const { FWD, RIGHT } = this.consts.vectors;
+                const {
+                    BASE_SPEED, YAW_SPEED, DEADZONE,
+                    RUN_EASE, MIN_RUN, MAX_RUN,
+                    CROUCH_EASE          // JUMP_EASE no longer needed for physics jump
+                } = this.consts;
+                const inp = this.input;          // shorthand
+                const GRAV = 20;                  // “eye-units” · s⁻²  (tweak to taste)
+
+                /* -------- one-time per-run initialisation of vertical state --------- */
+                if (inp.eyeY === undefined) {
+                    inp.baseEye = inp.STAND_Y;
+                    inp.crouchEye = inp.CROUCH_Y;
+                    inp.jumpPeak = inp.baseEye * 1.5;
+                    inp.eyeY = inp.baseEye;
+                    inp.vertVel = 0;             // current vertical velocity
+                    inp.groundY = 0;             // updated by _snap()
+                }
+
+                /* ---------------- trigger: convert “up” into a real jump ------------ */
+                if (inp.jumpState === 'up') {              // set by space-bar / R-stick
+                    const h = inp.jumpPeak - inp.baseEye;
+                    inp.vertVel = Math.sqrt(2 * GRAV * h);   // v₀ for that height
+                    inp.jumpState = 'jumping';
+                }
+
+                /* --------------------------- vertical motion ------------------------ */
+                if (inp.jumpState === 'jumping') {         // simple ballistic arc
+                    inp.vertVel -= GRAV * dt;
+                    inp.eyeY += inp.vertVel * dt;
+
+                    /* landed?  clamp & finish */
+                    if (inp.eyeY <= inp.baseEye) {
+                        inp.eyeY = inp.baseEye;
+                        inp.vertVel = 0;
+                        inp.jumpState = 'idle';
+                    }
+                } else {                                   // stand / crouch easing
+                    const tgt = inp.crouch ? inp.crouchEye : inp.baseEye;
+                    inp.eyeY += (tgt - inp.eyeY) * Math.min(1, CROUCH_EASE * dt);
+                }
+
+                /* camera height = terrain + eye-offset */
+                this.dolly.position.y = inp.groundY + inp.eyeY;
+
+                /* --------------------------- VR locomotion -------------------------- */
+                if (this.renderer.xr.isPresenting) {
+                    this.camera.getWorldDirection(FWD); FWD.y = 0; FWD.normalize();
+                    RIGHT.crossVectors(FWD, new THREE.Vector3(0, 1, 0)).normalize();
+
+                    this.renderer.xr.getSession().inputSources.forEach(src => {
+                        const gp = src.gamepad; if (!gp) return;
+                        const sx = gp.axes[2] || 0, sy = gp.axes[3] || 0;
+
+                        /* left-stick – move / run */
+                        if (src.handedness === 'left') {
+                            const tgtMul = gp.buttons[1]?.value > 0.5 ? MAX_RUN : MIN_RUN;
+                            inp.runMul += (tgtMul - inp.runMul) * RUN_EASE * dt;
+
+                            if (Math.hypot(sx, sy) > DEADZONE) {
+                                this.dolly.position.addScaledVector(
+                                    RIGHT, sx * BASE_SPEED * dt * inp.runMul
+                                );
+                                this.dolly.position.addScaledVector(
+                                    FWD, -sy * BASE_SPEED * dt * inp.runMul
+                                );
+                            }
+                        }
+
+                        /* right-stick – yaw / jump / crouch */
+                        if (src.handedness === 'right') {
+                            if (Math.abs(sx) > DEADZONE)
+                                this.dolly.rotation.y -= sx * YAW_SPEED * dt;
+
+                            if (sy < -DEADZONE && inp.jumpState === 'idle')
+                                inp.jumpState = 'up';          // start jump next frame
+
+                            inp.crouch = sy > DEADZONE;
+                        }
+                    });
+                }
+                /* --------------------- desktop / mobile locomotion ------------------ */
+                else {
+                    /* phone-orientation “look” --------------------------------------- */
+                    if (this.platform.isMobile && this.orientation.ready) {
+                        const { alpha: a, beta: b, gamma: g } = this.orientation;
+                        const euler = new THREE.Euler(
+                            THREE.MathUtils.degToRad(b),
+                            THREE.MathUtils.degToRad(a),
+                            THREE.MathUtils.degToRad(-g),
+                            'YXZ'
+                        );
+                        const quat = new THREE.Quaternion().setFromEuler(euler)
+                            .multiply(
+                                new THREE.Quaternion().setFromAxisAngle(
+                                    new THREE.Vector3(1, 0, 0), -Math.PI / 2
+                                )
+                            );
+                        this.dolly.quaternion.copy(quat);
+                    }
+
+                    /* keyboard / touch movement -------------------------------------- */
+                    if (inp.controls.isLocked || this.platform.isMobile) {
+                        this.camera.getWorldDirection(FWD); FWD.y = 0; FWD.normalize();
+                        RIGHT.crossVectors(FWD, new THREE.Vector3(0, 1, 0)).normalize();
+
+                        let mx = 0, mz = 0;
+                        if (inp.forward) mz++;
+                        if (inp.backward) mz--;
+                        if (inp.left) mx--;
+                        if (inp.right) mx++;
+
+                        mx += this.slide.x * this.slide.mag;
+                        mz -= this.slide.y * this.slide.mag;
+
+                        if (mx || mz) {
+                            const dir = new THREE.Vector3()
+                                .addScaledVector(RIGHT, mx)
+                                .addScaledVector(FWD, mz)
+                                .normalize();
+                            const speed = BASE_SPEED * (inp.shift ? MAX_RUN : MIN_RUN);
+                            this.dolly.position.addScaledVector(dir, speed * dt);
+                        }
+                    }
+                }
+
+                /* 2nd clamp in case _snap() ran after our logic ---------------------- */
+                this.dolly.position.y = inp.groundY + inp.eyeY;
+            }
 
 
-    function updateLocalMovement(delta) {
-      const baseSpeed = 2.0;
 
-      // — adjust sprintFactor exponentially
-      if (movement.shift) {
-        sprintFactor = Math.min(SPRINT_MAX,
-          sprintFactor * Math.exp(SPRINT_ACCEL * delta)
-        );
-      } else {
-        sprintFactor = Math.max(1.0,
-          sprintFactor * Math.exp(-SPRINT_DECAY * delta)
-        );
-      }
-      // camera axes
-      const forward = new THREE.Vector3();
-      camera.getWorldDirection(forward);
-      forward.y = 0;
-      forward.normalize();
-      // corrected right vector
-      const right = new THREE.Vector3()
-        .crossVectors(forward, new THREE.Vector3(0, 1, 0))
-        .normalize();
-      // keyboard inputs
-      let moveX = 0, moveZ = 0;
-      if (movement.forward) moveZ += 1;
-      if (movement.backward) moveZ -= 1;
-      if (movement.left) moveX -= 1;
-      if (movement.right) moveX += 1;
-      // add slide vector
-      moveX += slideVector.x * slideMagnitude;
-      moveZ += -slideVector.y * slideMagnitude;
-      const combined = new THREE.Vector3()
-        .addScaledVector(right, moveX)
-        .addScaledVector(forward, moveZ);
-      if (combined.lengthSq() > 0) {
-        // apply sprintFactor
-        const speed = baseSpeed * combined.length() * sprintFactor;
-        combined.normalize().multiplyScalar(speed * delta);
-        dolly.position.add(combined);
-        snapDolly();
-        pendingTileSpawn = true;
-        broadcastPosition();
-      }
-    }
+        }
 
 
-    // ── Signaling ───────────────────────────────────────────────────────────
-    function attemptDefaultConnect() {
-      socket = io(DEFAULT_SERVER, { transports: ['websocket'], timeout: 5000 });
-      setupSocketEvents();
-      socket.on('connect', () => { hideModal(); broadcastPosition(); });
-      socket.on('connect_error', () => showModal());
-    }
-    function startWithUrl(url) {
-      socket = io(url, { transports: ['websocket'], timeout: 5000 });
-      setupSocketEvents();
-      socket.on('connect', () => { hideModal(); broadcastPosition(); });
-      socket.on('connect_error', () => { alert('Could not connect to ' + url); showModal(); });
-    }
-    function showModal() {
-      document.getElementById('modal').classList.add('show');
-      document.getElementById('connectBtn').onclick = () => {
-        const u = document.getElementById('serverUrl').value.trim();
-        if (!u) return alert('Enter a URL');
-        startWithUrl(u);
-      };
-    }
-    function hideModal() {
-      document.getElementById('modal').classList.remove('show');
-    }
-    function setupSocketEvents() {
-      socket.on('existing-peers', peers => peers.forEach(p => addPeer(p.id)));
-      socket.on('new-peer', p => addPeer(p.id));
-      socket.on('peer-disconnect', id => removePeer(id));
-      socket.on('peer-message', data => {
-        const pb = peerBalls[data.peerId]; if (!pb) return;
-        try {
-          const m = JSON.parse(data.message);
-          pb.targetPos.set(m.x, m.y + EYE_HEIGHT, m.z);
-          pb.targetDir.set(m.dx, m.dy, m.dz);
-        } catch { }
-      });
-    }
-    function broadcastPosition() {
-      if (socket && socket.connected) {
-        const p = dolly.position, d = new THREE.Vector3();
-        camera.getWorldDirection(d);
-        socket.emit('broadcast-message', {
-          message: JSON.stringify({
-            x: p.x, y: p.y - EYE_HEIGHT, z: p.z,
-            dx: d.x, dy: d.y, dz: d.z
-          })
-        });
-      }
-    }
-    function addPeer(id) {
-      if (peerBalls[id]) return;
-      const color = Math.random() * 0xffffff;
-      const mat = new THREE.MeshStandardMaterial({ color });
-      const sph = new THREE.Mesh(new THREE.SphereGeometry(0.1, 16, 16), mat);
-      const arr = new THREE.ArrowHelper(
-        new THREE.Vector3(0, 0, 1),
-        new THREE.Vector3(0, 0, 0),
-        0.2, color
-      );
-      const g = new THREE.Group();
-      g.add(sph, arr);
+        class App {
+            constructor() {
+                if (location.protocol !== 'https:') {
+                    location.href = 'https:' + window.location.href.substring(location.protocol.length);
+                }
 
-      peerBalls[id] = {
-        group: g,
-        arrow: arr,
-        targetPos: new THREE.Vector3(),
-        targetDir: new THREE.Vector3(),
-        currentDir: new THREE.Vector3(0, 0, 1)
-      };
-      scene.add(g);
-    }
+                // ─── core setup ───────────────────────────────────
+                this.platform = new Platform();
+                this.hintEl = document.getElementById('hint');
+                this.requestBtn = document.getElementById('request');
+                this.sensorMgr = new SensorManager(this.requestBtn, this.hintEl, this.platform);
+                new GeoRequester(document.getElementById('geo'));
 
-    function updatePeers() {
-      Object.values(peerBalls).forEach(pb => {
-        // smooth position
-        pb.group.position.lerp(pb.targetPos, 0.1);
-        // stick to terrain
-        pb.group.position.y =
-          getHeightAt(pb.group.position.x, pb.group.position.z) + EYE_HEIGHT;
+                this.sceneMgr = new SceneManager(this.platform);
+                new XRControllerManager(this.sceneMgr.renderer, this.sceneMgr.dolly);
 
-        // smooth look-direction
-        const desired = pb.targetDir.clone().normalize();
-        pb.currentDir.lerp(desired, 0.1);
-        pb.arrow.setDirection(pb.currentDir);
-      });
-    }
-    function removePeer(id) {
-      const pb = peerBalls[id]; if (!pb) return;
-      scene.remove(pb.group); delete peerBalls[id];
-    }
-  </script>
+                this.hexGridMgr = new TileManager(this.sceneMgr.scene, 10, 200);
+                // ─── peer sync ─────────────────────────────────────────────────────────
+                this.peerMgr = new PeerManager(
+                    SIGNALING_SERVER,
+                    this.sceneMgr.scene,
+                    this.sceneMgr.dolly,
+                    this.sceneMgr.camera,
+                    this.hexGridMgr
+                );
+                // 1) first define your movement state (including baseEye)
+                this.movement = {
+                    forward: false, backward: false, left: false, right: false,
+                    shift: false, crouch: false,
+                    groundY: 0,
+                    baseEye: 1.6, eyeY: 1.6,
+                    crouchEye: 0.8, jumpPeak: 2.4, jumpState: 'idle',
+                    runMul: 1,
+                    slide: { x: 0, y: 0, mag: 0 },
+                    controls: null    // will fill in next
+                };
+
+                // 2) now build pointer‐lock around the camera
+                this.controls = new PointerLockControls(this.sceneMgr.camera, document.body);
+
+                // 3) attach the control’s own pivot back onto the dolly,
+                //    and lift it up by baseEye so rotation centers at head height
+                this.sceneMgr.dolly.add(this.controls.getObject());
+
+                // 4) finish wiring movement.controls and InputManager
+                this.movement.controls = this.controls;
+                this.inputMgr = new InputManager(
+                    this.platform,
+                    this.sceneMgr.renderer,
+                    this.controls,
+                    this.movement,
+                    this.movement.slide,
+                    this.sensorMgr
+                );
+
+                // 5) snap into place one first time
+                this._snap();
+
+
+                this.consts = {
+                    BASE_SPEED: 2, YAW_SPEED: 1.5, DEADZONE: 0.2,
+                    RUN_EASE: 3, MIN_RUN: 1, MAX_RUN: 3,
+                    JUMP_EASE: 4, CROUCH_EASE: 6,
+                    vectors: { FWD: new THREE.Vector3(), RIGHT: new THREE.Vector3() }
+                };
+                this.moveCtrl = new MovementController(
+                    this.sceneMgr, this.movement, this.consts, this.platform
+                );
+
+                // ─── birds-eye spherical & speed setup ─────────────────
+                this.birdsCamera = new THREE.PerspectiveCamera(
+                    75, window.innerWidth / window.innerHeight, 0.05, 1000
+                );
+                this._birdsOffsetEnd = new THREE.Vector3(0, 200, -200);
+                this._birdsSphericalStart = new THREE.Spherical();
+                this._birdsSphericalEnd = new THREE.Spherical();
+                this._birdsSphericalCur = new THREE.Spherical();
+                this._birdsSphericalEnd.setFromVector3(this._birdsOffsetEnd);
+                this._basePhi = this._birdsSphericalEnd.phi;
+                const maxDeg = 20;
+                this._maxPitchDelta = THREE.MathUtils.degToRad(maxDeg);
+                this._minPhi = this._basePhi - this._maxPitchDelta;
+                this._maxPhi = this._basePhi + this._maxPitchDelta;
+
+                this._birdsLerp = 0;
+                this.isBirdsEye = false;
+                this._resetPitch = false;
+                this._pitchEase = 5;
+                this._pitchResetTimeout = null;
+
+                // birds-eye speed multipliers
+                this.shiftHoldTime = 0;
+                this.birdWalkMultiplier = 20;
+                this.birdRunRampRate = 0.5;
+                this.maxBirdRunMultiplier = 4;
+
+                // track whether pointer is locked for orbit
+                this.birdsPointerLocked = false;
+
+                // bind & listen
+                this._onWheel = this._onWheel.bind(this);
+                this._onBirdsMouse = this._onBirdsMouse.bind(this);
+                this._onPointerLockChange = this._onPointerLockChange.bind(this);
+                this._onClickLock = this._onClickLock.bind(this);
+
+                window.addEventListener('wheel', this._onWheel, { passive: true });
+                window.addEventListener('mousemove', this._onBirdsMouse);
+                window.addEventListener('resize', () => this._onResize());
+                document.addEventListener('pointerlockchange', this._onPointerLockChange);
+                // allow re-locking when clicking in birds-eye
+                window.addEventListener('click', this._onClickLock);
+
+                this.clock = new THREE.Clock();
+                this.sceneMgr.renderer.setAnimationLoop(() => this._update());
+            }
+
+            _snap() {
+                const pos = this.sceneMgr.dolly.position;
+                const h = this.hexGridMgr.getHeightAt(pos.x, pos.z);
+                this.sceneMgr.dolly.position.y = h + this.movement.baseEye;
+            }
+
+            _onResize() {
+                const w = window.innerWidth, h = window.innerHeight;
+
+                // update cameras
+                this.sceneMgr.camera.aspect = w / h;
+                this.birdsCamera.aspect = w / h;
+                this.sceneMgr.camera.updateProjectionMatrix();
+                this.birdsCamera.updateProjectionMatrix();
+
+                // update renderer *and* post-processing composer
+                this.sceneMgr.renderer.setSize(w, h);
+                this.sceneMgr.composer.setSize(w, h);
+            }
+
+
+            _onWheel(evt) {
+                if (evt.deltaY > 0) {
+                    if (!this.isBirdsEye) this._enterBirdsEye();
+                } else {
+                    if (this.isBirdsEye) this._exitBirdsEye();
+                }
+            }
+
+            _enterBirdsEye() {
+                // request pointer lock immediately
+                this.sceneMgr.renderer.domElement.requestPointerLock();
+
+                // capture start spherical
+                const dollyPos = this.sceneMgr.dolly.position;
+                this.sceneMgr.camera.getWorldPosition(this._tempV || (this._tempV = new THREE.Vector3()));
+                this._tempV.sub(dollyPos);
+                this._birdsSphericalStart.setFromVector3(this._tempV);
+
+                // set target spherical to end-offset
+                this._birdsSphericalEnd.setFromVector3(this._birdsOffsetEnd);
+
+                this._birdsLerp = 0;
+                this.isBirdsEye = true;
+                this.shiftHoldTime = 0;
+            }
+
+            _exitBirdsEye() {
+                this.isBirdsEye = false;
+                clearTimeout(this._pitchResetTimeout);
+                this._resetPitch = false;
+                this.shiftHoldTime = 0;
+
+                // exit pointer lock if we had it
+                if (document.pointerLockElement === this.sceneMgr.renderer.domElement) {
+                    document.exitPointerLock();
+                }
+
+                // immediately re-snap the dolly to the surface
+                this._snap();
+            }
+
+
+            _onPointerLockChange() {
+                // update lock state only when in birds-eye
+                this.birdsPointerLocked = (
+                    this.isBirdsEye &&
+                    document.pointerLockElement === this.sceneMgr.renderer.domElement
+                );
+            }
+
+            _onClickLock() {
+                // on click, if zoomed-out but unlocked, re-request lock
+                if (this.isBirdsEye && !this.birdsPointerLocked) {
+                    this.sceneMgr.renderer.domElement.requestPointerLock();
+                }
+            }
+
+            _onBirdsMouse(evt) {
+                // only orbit if fully zoomed-out AND pointer locked
+                if (!this.isBirdsEye || this._birdsLerp < 1 || !this.birdsPointerLocked) return;
+
+                // yaw
+                this._birdsSphericalEnd.theta += -evt.movementX * 0.002;
+                // pitch
+                this._birdsSphericalEnd.phi += -evt.movementY * 0.002;
+                this._birdsSphericalEnd.phi = THREE.MathUtils.clamp(
+                    this._birdsSphericalEnd.phi,
+                    this._minPhi,
+                    this._maxPhi
+                );
+                // schedule pitch reset
+                clearTimeout(this._pitchResetTimeout);
+                this._resetPitch = false;
+                this._pitchResetTimeout = setTimeout(() => {
+                    this._resetPitch = true;
+                }, 200);
+            }
+
+            _update() {
+
+                this.sceneMgr.hTilt.enabled = this.isBirdsEye;
+                this.sceneMgr.vTilt.enabled = this.isBirdsEye;
+                const dt = this.clock.getDelta();
+                const pos = this.sceneMgr.dolly.position;
+
+                // always keep dolly riding the terrain
+                const h = this.hexGridMgr.getHeightAt(pos.x, pos.z);
+                pos.y = h + this.movement.baseEye;
+                this.movement.groundY = h;
+
+                // first-person update
+                if (!this.isBirdsEye) {
+                    this._snap();
+                    this.moveCtrl.update(dt);
+                }
+
+                // update tiles, peers, UI hash
+                this.hexGridMgr.update(pos);
+                const hashEl = document.getElementById('curHash');
+                if (hashEl) hashEl.textContent = this.hexGridMgr.getCurrentHash(pos) || '--';
+                this.peerMgr.broadcastPose();
+                this.peerMgr.updatePeers(dt);
+
+                if (this.isBirdsEye) {
+                    // —── birds-eye interpolation & orbit (unchanged) ───—
+                    if (this._birdsLerp < 1) {
+                        this._birdsLerp = Math.min(1, this._birdsLerp + dt / 0.5);
+                    }
+                    if (this._birdsLerp >= 1 && this._resetPitch) {
+                        const diff = this._basePhi - this._birdsSphericalEnd.phi;
+                        this._birdsSphericalEnd.phi += diff * Math.min(1, this._pitchEase * dt);
+                        if (Math.abs(diff) < 1e-3) {
+                            this._birdsSphericalEnd.phi = this._basePhi;
+                            this._resetPitch = false;
+                        }
+                    }
+                    this._birdsSphericalCur.radius = THREE.MathUtils.lerp(
+                        this._birdsSphericalStart.radius,
+                        this._birdsSphericalEnd.radius,
+                        this._birdsLerp
+                    );
+                    this._birdsSphericalCur.theta = THREE.MathUtils.lerp(
+                        this._birdsSphericalStart.theta,
+                        this._birdsSphericalEnd.theta,
+                        this._birdsLerp
+                    );
+                    this._birdsSphericalCur.phi = THREE.MathUtils.lerp(
+                        this._birdsSphericalStart.phi,
+                        this._birdsSphericalEnd.phi,
+                        this._birdsLerp
+                    );
+
+                    // compute offset from spherical, but force vertical = N
+                    const offset = this._offsetV || (this._offsetV = new THREE.Vector3());
+                    offset.setFromSpherical(this._birdsSphericalCur);
+                    const N = 200;  // desired height above ground
+                    offset.y = N;
+
+                    // position birdsCamera relative to terrain at dolly
+                    this.birdsCamera.position.set(
+                        pos.x + offset.x,
+                        h + offset.y,
+                        pos.z + offset.z
+                    );
+                    this.birdsCamera.lookAt(pos.x, h, pos.z);
+
+                    // allow movement in birds-eye mode
+                    if (this.movement.shift) this.shiftHoldTime += dt;
+                    else this.shiftHoldTime = 0;
+                    const walkM = this.birdWalkMultiplier;
+                    const runM = Math.min(this.maxBirdRunMultiplier,
+                        1 + this.shiftHoldTime * this.birdRunRampRate);
+                    const mult = this.movement.shift ? runM : walkM;
+                    const speed = this.consts.BASE_SPEED * dt * mult;
+                    const fwd = this.birdsCamera.getWorldDirection(new THREE.Vector3())
+                        .setY(0).normalize();
+                    const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0));
+                    if (this.movement.forward) pos.addScaledVector(fwd, speed);
+                    if (this.movement.backward) pos.addScaledVector(fwd, -speed);
+                    if (this.movement.left) pos.addScaledVector(right, -speed);
+                    if (this.movement.right) pos.addScaledVector(right, speed);
+
+                    // **direct** render with birdsCamera (bypass composer)
+                    this.sceneMgr.renderer.render(
+                        this.sceneMgr.scene,
+                        this.birdsCamera
+                    );
+
+                } else {
+                    // first-person: go through the composer
+                    this.sceneMgr.render();
+                }
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => new App());
+
+
+    </script>
+    <!-- Note: include LZString library for compression/decompression -->
+    <script src="https://cdn.jsdelivr.net/npm/lz-string@1.4.4/libs/lz-string.min.js"></script>
 </body>
 
 </html>
