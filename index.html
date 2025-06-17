@@ -85,6 +85,21 @@
             <circle cx="12" cy="8" r="2.5" fill="#eeeeeeaa" />
         </svg>
     </button>
+
+    <div id="clearCacheBtn" style="position:absolute;top:1.5rem;left:10px;
+    height:2rem;width:2rem;display:flex;
+    align-items:center;justify-content:center;
+    padding:0.5rem;border-radius:100%;background:#222;
+    color:#fffa;cursor:pointer;z-index:9999;
+    font-family:sans-serif;font-size:0.9rem;
+    user-select:none;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="1rem" height="1rem" viewBox="0 0 24 24" fill="none">
+            <path
+                d="M3 3V8M3 8H8M3 8L6 5.29168C7.59227 3.86656 9.69494 3 12 3C16.9706 3 21 7.02944 21 12C21 16.9706 16.9706 21 12 21C7.71683 21 4.13247 18.008 3.22302 14"
+                stroke="#ffffff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+
+    </div>
     <div id="curHash">
         --
     </div>
@@ -140,10 +155,19 @@
         import { VerticalTiltShiftShader } from 'VerticalTiltShiftShader';
 
 
+        document.getElementById('clearCacheBtn').onclick = () => {
+            localStorage.clear();
+            location.reload();
+        };
+
+
 
         const CHARACTER_MODEL = '/Xbot.glb';
         const SIGNALING_SERVER = 'https://ipfs-signaling-vr.loca.lt';
-
+        // point this at your LocalTunnel socket URL:
+        const elevSocket = io('https://elevationpubquery.loca.lt', {
+            transports: ['websocket']
+        });
         const c16 = LZString.compressToUTF16;
         const d16 = LZString.decompressFromUTF16;
 
@@ -439,7 +463,7 @@
                     / this.speedHistory.length;
 
                 // — log UUID + averaged speed
-                console.log(`RemotePlayer ${this.id} avg speed: ${avgSpeed.toFixed(2)} m/s`);
+                //console.log(`RemotePlayer ${this.id} avg speed: ${avgSpeed.toFixed(2)} m/s`);
 
                 // 7) determine forward vs backward
                 const forward = new THREE.Vector3(0, 0, 1)
@@ -547,8 +571,8 @@
 
                     uniforms: {
                         colorLow: { value: new THREE.Color(0x111111) },
-                        colorHigh: { value: new THREE.Color(0xaaaaaa) },
-                        textureIntensity: { value: 0.1 }
+                        colorHigh: { value: new THREE.Color(0x555555) },
+                        textureIntensity: { value: 0.5 }
                     },
 
                     vertexShader: `
@@ -595,7 +619,7 @@
                 const wire = new THREE.MeshBasicMaterial({
                     color: 0x000000,
                     transparent: true,
-                    opacity: 0.3,
+                    opacity: 0.05,
                     wireframe: true
                 });
 
@@ -619,16 +643,17 @@
 
 
         class TileManager {
-            constructor(scene, spacing = 5, tileRadius = 50) {
+            constructor(scene, spacing = 5, tileRadius = 50, elevSocket) {
                 this.scene = scene;
                 this.spacing = spacing;
                 this.tileRadius = tileRadius;
                 this.tiles = new Map();    // id → { grid, q, r, elevArr, fetched, populating }
                 this.origin = null;         // set on first gps‐updated
                 this.elevCache = this._loadCache();
-
+                this.elevSocket = elevSocket;
                 this.ray = new THREE.Raycaster();
                 this.DOWN = new THREE.Vector3(0, -1, 0);
+
 
                 // basic lighting
                 if (!scene.userData._tmLightsAdded) {
@@ -828,9 +853,10 @@
                 );
             }
 
+            // ─── Replacement for _populate ─────────────────────────────────────
             _populate = function (id) {
                 const data = this.tiles.get(id);
-                if (!data || !this.origin || data.populating) return;
+                if (!data || !this.origin || data.populating || data.hasPopulated) return;
                 data.populating = true;
 
                 const { grid, elevArr, fetched, q, r, neighbors } = data;
@@ -843,9 +869,9 @@
                 const mLat = 111320;
                 const mLon = 111320 * Math.cos(this.origin.lat * Math.PI / 180);
 
-                // 1) interior smoothing
+                // 1) Smoothing helper
                 const smoothInterior = () => {
-                    const pts = Array.from(fetched).map(i => ({
+                    const fetchedPts = Array.from(fetched).map(i => ({
                         x: grid.group.position.x + pos.getX(i),
                         z: grid.group.position.z + pos.getZ(i),
                         y: pos.getY(i)
@@ -862,23 +888,21 @@
                                     cnt++;
                                 }
                             }
-                            let newY;
+                            let newY = snap[k];
                             if (cnt > 0) {
                                 newY = sum / cnt;
-                            } else if (pts.length) {
-                                let wsum = 0, wden = 0;
+                            } else if (fetchedPts.length) {
                                 const xk = grid.group.position.x + pos.getX(k),
                                     zk = grid.group.position.z + pos.getZ(k);
-                                for (const pt of pts) {
-                                    const dx = pt.x - xk, dz = pt.z - zk,
-                                        d2 = dx * dx + dz * dz + 1e-6,
-                                        w = 1 / d2;
+                                let wsum = 0, wden = 0;
+                                for (const pt of fetchedPts) {
+                                    const dx = pt.x - xk, dz = pt.z - zk;
+                                    const d2 = dx * dx + dz * dz + 1e-6;
+                                    const w = 1.0 / d2;
                                     wsum += w * pt.y;
                                     wden += w;
                                 }
                                 newY = wsum / wden;
-                            } else {
-                                continue;
                             }
                             pos.setY(k, snap[k] * 0.7 + newY * 0.3);
                         }
@@ -886,32 +910,27 @@
                     pos.needsUpdate = true;
                 };
 
-                // 2) try reloading partial cache first
+                // 2) Preload cache if present
                 const raw = localStorage.getItem(`tile:${id}`);
                 if (raw) {
                     try {
                         const obj = JSON.parse(raw);
                         obj.fetched.forEach(i => {
-                            elevArr[i] = obj.elevArr[i];
-                            pos.setY(i, elevArr[i]);
+                            const v = obj.elevArr[i];
+                            pos.setY(i, v);
+                            elevArr[i] = v;
                             fetched.add(i);
                         });
                         pos.needsUpdate = true;
                         smoothInterior();
-                        // stitch after preload
-                        this._stitchEdges(id);
-                        DIRS.forEach(([dx, dy]) => {
-                            const nbr = `${q + dx},${r + dy}`;
-                            if (this.tiles.has(nbr)) this._stitchEdges(nbr);
-                        });
                         this._scheduleGlobalRecolor();
                     } catch {
                         localStorage.removeItem(`tile:${id}`);
                     }
                 }
 
-                // 3) build list of missing verts
-                const missing = [];
+                // 3) Collect missing vertices
+                let missing = [];
                 for (let i = 0; i < n; i++) {
                     if (!fetched.has(i)) missing.push(i);
                 }
@@ -920,54 +939,123 @@
                     return this._finalizeTile(id);
                 }
 
-                // 4) edge‐biased sort + bucket into STEP groups
-                missing.sort((a, b) => {
-                    const dA = pos.getX(a) ** 2 + pos.getZ(a) ** 2;
-                    const dB = pos.getX(b) ** 2 + pos.getZ(b) ** 2;
-                    return dB - dA;
-                });
+                // 4) Farthest-first + interleave into STEP groups
+                missing = missing
+                    .map(i => ({ i, d2: pos.getX(i) ** 2 + pos.getZ(i) ** 2 }))
+                    .sort((a, b) => b.d2 - a.d2)
+                    .map(o => o.i);
                 const groups = Array.from({ length: STEP }, () => []);
                 missing.forEach((i, idx) => groups[idx % STEP].push(i));
 
-                const fetchIndex = i => new Promise(resolve => {
-                    const wx = grid.group.position.x + pos.getX(i),
-                        wz = grid.group.position.z + pos.getZ(i),
-                        lat = this.origin.lat + wz / mLat,
-                        lon = this.origin.lon + wx / mLon,
-                        cache = this._elevCache(lat, lon);
+                // 5) Batched fetch with global lock
+                if (!TileManager._fetching) TileManager._fetching = false;
+                const fetchBatch = indices => new Promise(resolve => {
+                    const toFetch = [];
+                    indices.forEach(i => {
+                        const wx = grid.group.position.x + pos.getX(i),
+                            wz = grid.group.position.z + pos.getZ(i),
+                            lat = this.origin.lat + wz / mLat,
+                            lon = this.origin.lon + wx / mLon;
+                        const cacheVal = this._elevCache(lat, lon);
+                        if (cacheVal != null) {
+                            pos.setY(i, cacheVal);
+                            elevArr[i] = cacheVal;
+                            fetched.add(i);
+                        } else {
+                            toFetch.push({ i, lat, lng: lon });
+                        }
+                    });
 
-                    const apply = v => {
-                        pos.setY(i, v);
-                        elevArr[i] = v;
-                        fetched.add(i);
-                        TileManager.minY = Math.min(TileManager.minY, v);
-                        TileManager.maxY = Math.max(TileManager.maxY, v);
-
-                        this._cacheTileProgress(id);
-                        smoothInterior();
-                        this._scheduleGlobalRecolor();
+                    if (!toFetch.length) {
                         resolve();
+                        return;
+                    }
+
+                    // wait for global lock
+                    const startRequest = () => {
+                        TileManager._fetching = true;
+                        this.elevSocket.emit('elevation-request', {
+                            dataset: 'mapzen',
+                            locations: toFetch.map(o => ({ lat: o.lat, lng: o.lng }))
+                        });
+                        // no ack; listen once and then release lock
+                        this.elevSocket.once('elevation-response', resp => {
+                            const results = (resp && Array.isArray(resp.results)) ? resp.results : [];
+                            toFetch.forEach(({ i, lat, lng }, idx) => {
+                                const r = results[idx];
+                                const v = (r && typeof r.elevation === 'number') ? r.elevation : 0;
+                                pos.setY(i, v);
+                                elevArr[i] = v;
+                                fetched.add(i);
+                                TileManager.minY = Math.min(TileManager.minY, v);
+                                TileManager.maxY = Math.max(TileManager.maxY, v);
+                                this._storeCache(lat, lng, v);
+                            });
+                            TileManager._fetching = false;
+                            resolve();
+                        });
                     };
 
-                    if (cache != null) return apply(cache);
-                    fetch(`https://epqs.nationalmap.gov/v1/json?x=${lon}&y=${lat}&wkid=4326&units=Meters`)
-                        .then(r => r.json())
-                        .then(d => apply(d.value || 0))
-                        .catch(() => apply(0));
+                    if (!TileManager._fetching) {
+                        startRequest();
+                    } else {
+                        const poll = () => {
+                            if (!TileManager._fetching) startRequest();
+                            else setTimeout(poll, 2);
+                        };
+                        poll();
+                    }
                 });
 
+                // 6) Run all batches sequentially
                 (async () => {
                     for (let pass = 0; pass < STEP; pass++) {
                         const batch = groups[pass];
-                        for (let i = 0; i < batch.length; i += MAX_CON) {
-                            await Promise.all(batch.slice(i, i + MAX_CON).map(fetchIndex));
+                        for (let start = 0; start < batch.length; start += MAX_CON) {
+                            await fetchBatch(batch.slice(start, start + MAX_CON));
+                            smoothInterior();
+                            this._scheduleGlobalRecolor();
                         }
                     }
-                    data.populating = false;
-                    this._finalizeTile(id);
 
+                    // 7) Fill any remaining holes via neighbor-average
+                    const still = [];
+                    for (let i = 0; i < n; i++) {
+                        if (!fetched.has(i)) still.push(i);
+                    }
+                    still.forEach(i => {
+                        let sum = 0, cnt = 0;
+                        for (const nb of neighbors[i]) {
+                            if (fetched.has(nb)) { sum += pos.getY(nb); cnt++; }
+                        }
+                        if (cnt) {
+                            const v = sum / cnt;
+                            pos.setY(i, v);
+                            elevArr[i] = v;
+                            fetched.add(i);
+                        }
+                    });
+
+                    // 8) One-way push to children only
+                    for (const [dx, dy] of DIRS) {
+                        if (this._isParentTile(q, r, dx, dy)) {
+                            const nbrId = `${q + dx},${r + dy}`;
+                            if (this.tiles.has(nbrId)) {
+                                this._stitchEdges(id, nbrId);
+                            }
+                        }
+                    }
+
+                    smoothInterior();
+                    this._scheduleGlobalRecolor();
+
+                    data.populating = false;
+                    data.hasPopulated = true;
+                    this._finalizeTile(id);
                 })();
             };
+
+
 
             _finalizeTile(id) {
                 const data = this.tiles.get(id);
@@ -981,19 +1069,25 @@
                 // compute average height
                 grid.avgHeight = elevArr.reduce((s, v) => s + v, 0) / fetched.size;
 
-                // **one final stitch pass on both sides of every neighbor**
-                this._stitchEdges(id);
-                DIRS.forEach(([dx, dy]) => {
-                    const nbr = `${q + dx},${r + dy}`;
-                    if (this.tiles.has(nbr)) this._stitchEdges(nbr);
-                });
+                // push out only to “child” neighbors
+                for (const [dx, dy] of DIRS) {
+                    if (this._isParentTile(q, r, dx, dy)) {
+                        const nbrId = `${q + dx},${r + dy}`;
+                        if (this.tiles.has(nbrId)) {
+                            this._stitchEdges(id, nbrId);
+                        }
+                    }
+                }
 
-                // persist the completed tile
+                // cache & persist
+                this._cacheTileProgress(id);
                 localStorage.setItem(
                     `tile:${id}`,
                     JSON.stringify({ elevArr, fetched: Array.from(fetched) })
                 );
             }
+
+
 
 
             _isParentTile(q, r, dq, dr) {
@@ -1135,6 +1229,8 @@
             }
 
         }
+
+
 
         // --- Rest of app classes (Platform, SensorManager, SceneManager, etc.) ---
         class Platform {
@@ -1290,12 +1386,9 @@
                 this.dolly.add(this.camera);
                 this.scene.add(this.dolly);
 
-                // Realistic Lighting
-                // Hemisphere for subtle sky/ground bounce
+                // Lighting
                 const hemi = new THREE.HemisphereLight(0xffffff, 0x444444, 0.6);
                 this.scene.add(hemi);
-
-                // Directional "sun" with shadows
                 const sun = new THREE.DirectionalLight(0xffffff, 4.0);
                 sun.position.set(100, 500, 100);
                 sun.castShadow = true;
@@ -1308,7 +1401,7 @@
                 sun.shadow.camera.bottom = -200;
                 this.scene.add(sun);
 
-                // Ground plane to catch shadows (optional)
+                // Ground plane
                 const groundMat = new THREE.MeshStandardMaterial({ color: 0x111111 });
                 const ground = new THREE.Mesh(
                     new THREE.PlaneGeometry(1000, 1000),
@@ -1318,19 +1411,21 @@
                 ground.receiveShadow = true;
                 this.scene.add(ground);
 
-                // Post-processing setup
-                this.composer = new EffectComposer(this.renderer);
-                this.composer.addPass(new RenderPass(this.scene, this.camera));
+                // ─── Post-processing: only when NOT in VR ────────────────────
+                if (!this.renderer.xr.isPresenting) {
+                    this.composer = new EffectComposer(this.renderer);
+                    this.composer.addPass(new RenderPass(this.scene, this.camera));
 
-                // Horizontal tilt-shift
-                this.hTilt = new ShaderPass(HorizontalTiltShiftShader);
-                this.hTilt.uniforms.h.value = 2 / window.innerHeight;
-                this.composer.addPass(this.hTilt);
+                    this.hTilt = new ShaderPass(HorizontalTiltShiftShader);
+                    this.hTilt.uniforms.h.value = 2 / window.innerHeight;
+                    this.composer.addPass(this.hTilt);
 
-                // Vertical tilt-shift
-                this.vTilt = new ShaderPass(VerticalTiltShiftShader);
-                this.vTilt.uniforms.v.value = 1 / window.innerWidth;
-                this.composer.addPass(this.vTilt);
+                    this.vTilt = new ShaderPass(VerticalTiltShiftShader);
+                    this.vTilt.uniforms.v.value = 1 / window.innerWidth;
+                    this.composer.addPass(this.vTilt);
+                } else {
+                    this.composer = null;
+                }
 
                 // Handle resize
                 window.addEventListener('resize', () => {
@@ -1338,17 +1433,27 @@
                     this.renderer.setSize(w, h);
                     this.camera.aspect = w / h;
                     this.camera.updateProjectionMatrix();
-                    this.composer.setSize(w, h);
-                    this.hTilt.uniforms.h.value = 1 / h;
-                    this.vTilt.uniforms.v.value = 1 / w;
+
+                    if (this.composer) {
+                        this.composer.setSize(w, h);
+                        this.hTilt.uniforms.h.value = 1 / h;
+                        this.vTilt.uniforms.v.value = 1 / w;
+                    }
                 });
             }
 
-            // Expose a single render call
+            // single render entry-point
             render() {
-                this.composer.render();
+                if (this.renderer.xr.isPresenting || !this.composer) {
+                    // VR or no composer → standard render
+                    this.renderer.render(this.scene, this.camera);
+                } else {
+                    // non-VR → post-process
+                    this.composer.render();
+                }
             }
         }
+
 
 
         class XRControllerManager {
@@ -1581,7 +1686,7 @@
                 this.sceneMgr = new SceneManager(this.platform);
                 new XRControllerManager(this.sceneMgr.renderer, this.sceneMgr.dolly);
 
-                this.hexGridMgr = new TileManager(this.sceneMgr.scene, 10, 200);
+                this.hexGridMgr = new TileManager(this.sceneMgr.scene, 5, 100, elevSocket);
                 // ─── peer sync ─────────────────────────────────────────────────────────
                 this.peerMgr = new PeerManager(
                     SIGNALING_SERVER,
