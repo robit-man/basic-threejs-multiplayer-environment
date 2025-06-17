@@ -1,4 +1,4 @@
-![image](https://github.com/user-attachments/assets/2ce32176-d06c-41c1-aaf3-69447cc65380)
+https://github.com/user-attachments/assets/2186dc0b-e020-4f3b-ae28-b7669dcd2f18
 
 
 - Gets Locale
